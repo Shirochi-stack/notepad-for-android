@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application>
+        <!-- This writable provider exists only in the instrumentation APK. -->
+        <provider
+            android:name="com.shirochi.notepad.TestFileProvider"
+            android:authorities="com.shirochi.notepad.test.files"
+            android:exported="true"
+            android:grantUriPermissions="true" />
+    </application>
+</manifest>

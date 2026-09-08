@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.NotepadStudio" parent="android:style/Theme.Material.NoActionBar">
+        <item name="android:fontFamily">sans</item>
+        <item name="android:colorAccent">#72DAC1</item>
+        <item name="android:windowActionModeOverlay">true</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:statusBarColor">#10191D</item>
+        <item name="android:navigationBarColor">#10191D</item>
+        <item name="android:windowBackground">#10191D</item>
+    </style>
+    <style name="Theme.NotepadStudio.Light" parent="android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:fontFamily">sans</item>
+        <item name="android:colorAccent">#006D5B</item>
+        <item name="android:windowActionModeOverlay">true</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:statusBarColor">#F5F8F8</item>
+        <item name="android:navigationBarColor">#F5F8F8</item>
+        <item name="android:windowBackground">#F5F8F8</item>
+    </style>
+</resources>
