@@ -2,7 +2,7 @@
 
 A free, open-source notepad and text editor for **Android 8.0 and later**. Write notes, edit text and code, keep several files open in tabs, and find or replace text with familiar **Ctrl+F** and **Ctrl+H** shortcuts.
 
-**[Download Notepad for Android v1.0.3 (APK)](https://github.com/Shirochi-stack/notepad-for-android/releases/download/v1.0.3/Notepad-for-Android-1.0.3-debug.apk)** · [Release notes](https://github.com/Shirochi-stack/notepad-for-android/releases/tag/v1.0.3) · [Report an issue](https://github.com/Shirochi-stack/notepad-for-android/issues)
+**[Download Notepad for Android v1.0.4 (APK)](https://github.com/Shirochi-stack/notepad-for-android/releases/download/v1.0.4/Notepad-for-Android-1.0.4-debug.apk)** · [Release notes](https://github.com/Shirochi-stack/notepad-for-android/releases/tag/v1.0.4) · [Report an issue](https://github.com/Shirochi-stack/notepad-for-android/issues)
 
 The current download is a debug-signed preview APK; the app is not listed on Google Play.
 
@@ -23,7 +23,7 @@ To update an existing installation, install the new APK over the app without uni
 
 - **Notes and files:** document tabs, recent files, open multiple files, Save, Save as, Save all, share text, and Android **Open with**, **Edit**, and **Share** support for incoming files. Unsaved tabs prompt before closing, and local drafts help recover your work when you reopen the app.
 - **Find and replace:** next/previous match, match counts, highlighted results, case sensitivity, whole-word search, regular expressions, and capture-group replacements such as `$1`.
-- **Comfortable editing:** undo/redo, line numbers, current-line highlight, go to line, word wrap, horizontal scrolling, adjustable font size, light/dark themes, and document statistics.
+- **Comfortable editing:** undo/redo, line numbers, current-line highlight, go to line, word wrap, visible editor scrollbars, adjustable font size (14 by default), light/dark themes, and document statistics. The vertical scrollbar shows your position in longer documents; turn word wrap off to scroll long lines horizontally.
 - **Code editing:** syntax highlighting for JavaScript, TypeScript, Java, Kotlin, C/C++, Python, JSON, HTML/XML, CSS, Markdown, SQL, shell scripts, and YAML. Includes auto indent, tabs or four spaces, block indent/unindent, duplicate line/selection, toggle line comments, case conversion, and quick bracket insertion.
 - **File formats:** automatic UTF-8, UTF-16 LE/BE, and Windows-1252 decoding; manual encoding selection for other text encodings supported by your device; byte-order mark detection; LF, CRLF, and CR line endings. The app warns before overwriting a file that changed elsewhere and rejects encoding changes that would lose characters.
 - **Touch and keyboards:** Android text selection, copy, cut, and paste, plus physical keyboard shortcuts. Primary actions are available through touch controls too.

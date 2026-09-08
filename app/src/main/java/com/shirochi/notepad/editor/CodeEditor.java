@@ -19,6 +19,7 @@ import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.inputmethod.EditorInfo;
 import android.widget.EditText;
+import com.shirochi.notepad.R;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -32,6 +33,8 @@ import java.util.regex.Pattern;
  * drawing only; they never replace the document text.
  */
 public class CodeEditor extends EditText {
+  public static final int DEFAULT_FONT_SIZE_SP = 14;
+
   public interface SelectionListener {
     void onSelectionChanged(int start, int end);
   }
@@ -159,11 +162,13 @@ public class CodeEditor extends EditText {
   }
 
   public CodeEditor(Context context, AttributeSet attrs) {
-    this(context, attrs, android.R.attr.editTextStyle);
+    // A zero defStyleAttr lets our native scrollbar resources take effect even when the host
+    // theme defines editTextStyle. The default style still inherits the platform EditText widget.
+    this(context, attrs, 0);
   }
 
   public CodeEditor(Context context, AttributeSet attrs, int defStyleAttr) {
-    super(context, attrs, defStyleAttr);
+    super(context, attrs, defStyleAttr, R.style.Widget_Notepad_CodeEditor);
     initialize();
   }
 
@@ -177,7 +182,7 @@ public class CodeEditor extends EditText {
     dividerPaint.setStrokeWidth(dp(1));
 
     setTypeface(Typeface.MONOSPACE);
-    setTextSize(TypedValue.COMPLEX_UNIT_SP, 15);
+    setTextSize(TypedValue.COMPLEX_UNIT_SP, DEFAULT_FONT_SIZE_SP);
     setGravity(Gravity.TOP | Gravity.START);
     setTextDirection(TEXT_DIRECTION_LTR);
     setLayoutDirection(LAYOUT_DIRECTION_LTR);
@@ -194,6 +199,10 @@ public class CodeEditor extends EditText {
     setHorizontallyScrolling(false);
     setHorizontalScrollBarEnabled(false);
     setVerticalScrollBarEnabled(true);
+    setScrollbarFadingEnabled(false);
+    setScrollBarSize(dp(8));
+    setScrollBarStyle(SCROLLBARS_INSIDE_INSET);
+    setVerticalScrollbarPosition(SCROLLBAR_POSITION_RIGHT);
     setOverScrollMode(OVER_SCROLL_IF_CONTENT_SCROLLS);
     setBackground(null);
     setHint("Start typing…");
@@ -384,10 +393,24 @@ public class CodeEditor extends EditText {
       cursor.setColor(Color.parseColor(dark ? "#7CA9FF" : "#2865D6"));
       cursor.setSize(dp(2), Math.max(dp(18), (int) getTextSize()));
       setTextCursorDrawable(cursor);
+      int thumb = Color.parseColor(dark ? "#A0B8D9" : "#506682");
+      int track = Color.parseColor(dark ? "#28364D" : "#E2E8F0");
+      setVerticalScrollbarThumbDrawable(scrollbarDrawable(thumb));
+      setHorizontalScrollbarThumbDrawable(scrollbarDrawable(thumb));
+      setVerticalScrollbarTrackDrawable(scrollbarDrawable(track));
+      setHorizontalScrollbarTrackDrawable(scrollbarDrawable(track));
     }
     applySearchSpans();
     scheduleHighlighting();
     invalidate();
+  }
+
+  private GradientDrawable scrollbarDrawable(int color) {
+    GradientDrawable drawable = new GradientDrawable();
+    drawable.setColor(color);
+    drawable.setCornerRadius(dp(4));
+    drawable.setSize(dp(8), dp(8));
+    return drawable;
   }
 
   public boolean isDarkTheme() {

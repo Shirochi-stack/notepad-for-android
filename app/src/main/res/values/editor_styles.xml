@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Drawable attributes initialize native scrollbar rendering on Android 8 and later. -->
+    <style name="Widget.Notepad.CodeEditor" parent="android:style/Widget.Material.EditText">
+        <item name="android:scrollbars">vertical</item>
+        <item name="android:fadeScrollbars">false</item>
+        <item name="android:scrollbarSize">8dp</item>
+        <item name="android:scrollbarStyle">insideInset</item>
+        <item name="android:scrollbarThumbVertical">@drawable/editor_scrollbar_thumb</item>
+        <item name="android:scrollbarThumbHorizontal">@drawable/editor_scrollbar_thumb</item>
+        <item name="android:scrollbarTrackVertical">@drawable/editor_scrollbar_track</item>
+        <item name="android:scrollbarTrackHorizontal">@drawable/editor_scrollbar_track</item>
+        <item name="android:scrollbarAlwaysDrawVerticalTrack">false</item>
+        <item name="android:scrollbarAlwaysDrawHorizontalTrack">false</item>
+    </style>
+</resources>

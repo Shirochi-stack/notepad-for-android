@@ -1,7 +1,9 @@
 package com.shirochi.notepad;
 
+import static androidx.test.espresso.Espresso.closeSoftKeyboard;
 import static androidx.test.espresso.Espresso.onView;
 import static androidx.test.espresso.action.ViewActions.click;
+import static androidx.test.espresso.matcher.RootMatchers.isDialog;
 import static androidx.test.espresso.matcher.ViewMatchers.withContentDescription;
 import static androidx.test.espresso.matcher.ViewMatchers.withText;
 import static org.junit.Assert.*;
@@ -287,11 +289,17 @@ public final class EditorSmokeTest {
           assertNotNull(pair);
           assertTrue(pair.performClick());
           assertEquals("ab(cde)f", editor.getText().toString());
+        });
+    // Finish the keyboard resize before a dialog item receives a coordinate-based Espresso tap.
+    closeSoftKeyboard();
+    scenario.onActivity(
+        activity -> {
+          CodeEditor editor = editor(activity);
           editor.setText("abcdef");
           editor.setSelection(5, 2);
           invoke(activity, "convertCase");
         });
-    onView(withText("UPPERCASE")).perform(click());
+    onView(withText("UPPERCASE")).inRoot(isDialog()).perform(click());
     scenario.onActivity(activity -> assertEquals("abCDEf", editor(activity).getText().toString()));
   }
 

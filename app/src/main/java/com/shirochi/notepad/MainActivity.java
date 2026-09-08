@@ -99,7 +99,7 @@ public final class MainActivity extends Activity {
     wrap = prefs.getBoolean("wrap", true);
     numbers = prefs.getBoolean("numbers", true);
     autoIndent = prefs.getBoolean("indent", true);
-    fontSize = prefs.getInt("fontSize", 16);
+    fontSize = prefs.getInt("fontSize", CodeEditor.DEFAULT_FONT_SIZE_SP);
     if (state != null) pendingSaveId = state.getString("pendingSaveId");
     buildUi();
     if (state == null) deferredIntents.add(getIntent());
@@ -1786,7 +1786,7 @@ public final class MainActivity extends Activity {
 
   private void about() {
     new AlertDialog.Builder(this)
-        .setTitle(getString(R.string.app_name) + " 1.0.3")
+        .setTitle(getString(R.string.app_name) + " 1.0.4")
         .setMessage(
             "A focused text and code editor for Android.\n\n"
                 + "Your drafts stay on this device. No account, ads, analytics, or internet"
