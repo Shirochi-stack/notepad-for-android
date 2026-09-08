@@ -1,34 +1,44 @@
 # Notepad for Android
 
-**Notepad for Android** is a native, offline text and code editor with document tabs, search and replace, syntax highlighting, and physical keyboard shortcuts including **Ctrl+F** and **Ctrl+H**. Built in Java for **Android 8.0 and later**, it brings familiar desktop editing features to your phone or tablet. Inspired by editors such as Notepad++; independent software, not affiliated with Notepad++.
+A free, open-source notepad and text editor for **Android 8.0 and later**. Write notes, edit text and code, keep several files open in tabs, and find or replace text with familiar **Ctrl+F** and **Ctrl+H** shortcuts.
+
+**[Download Notepad for Android v1.0.1 (APK)](https://github.com/Shirochi-stack/notepad-for-android/releases/download/v1.0.1/Notepad-for-Android-1.0.1-debug.apk)** · [Release notes](https://github.com/Shirochi-stack/notepad-for-android/releases/tag/v1.0.1) · [Report an issue](https://github.com/Shirochi-stack/notepad-for-android/issues)
+
+The current download is a debug-signed preview APK; the app is not listed on Google Play.
 
 <p>
-  <img src="docs/screenshots/editor.png" width="280" alt="Notepad for Android with document tabs and JavaScript syntax highlighting" />
-  <img src="docs/screenshots/search-replace.png" width="280" alt="Notepad for Android search and replace with match highlights" />
+  <img src="docs/screenshots/editor.png" width="280" alt="Notepad for Android with document tabs, line numbers, and JavaScript syntax highlighting" />
+  <img src="docs/screenshots/search-replace.png" width="280" alt="Finding and replacing text in Notepad for Android with highlighted search results" />
 </p>
 
-## Install
+## Install or update
 
-Download `Notepad-for-Android-1.0.1-debug.apk` from the private [Releases page](https://github.com/Shirochi-stack/notepad-for-android/releases). On your Android device, open the APK and allow installation from the app you used to download it when Android prompts you.
+1. Download the APK above on your Android phone or tablet.
+2. Open the downloaded file. If Android asks, allow installation from the browser or file manager you used to open it.
+3. Tap **Install**, then open **Notepad for Android**.
 
-This is an installable, debug-signed development build. It is not a Google Play release. The source, APK, and build reports are private to people with repository access.
+To update an existing installation, install the new APK over the app without uninstalling it. Uninstalling removes the app's local drafts and settings. Save important drafts to files before updating.
 
 ## Features
 
-- Multiple document tabs with independent undo/redo, cursor positions, and unsaved-change indicators.
-- New, open multiple files, save, save as, save all, recent files, share text, and Android “Open with” support.
-- Android's system file picker supports local storage and installed document providers. No broad storage permission is requested.
-- Atomic, app-private draft recovery after reopening. Draft recovery never automatically overwrites source files. Unsaved tabs prompt before closing.
-- Save conflict detection: a file changed outside the app requires an explicit overwrite choice. Failed saves keep the draft.
-- Find and replace, next/previous match, match counts, highlighted results, case sensitivity, Unicode whole-word search, regular expressions, and capture-group replacement such as `$1`.
-- Line numbers, current-line highlight, go to line, word wrap, horizontal scrolling, font sizes, light/dark themes, and document statistics.
-- Lightweight syntax highlighting for JavaScript, TypeScript, Java, Kotlin, C/C++, Python, JSON, HTML/XML, CSS, Markdown, SQL, shell scripts, and YAML.
-- Auto indent, tab or four-space indentation, block indent/unindent, duplicate line/selection, toggle line comments, selected-text case conversion, and quick bracket insertion.
-- Native Android text selection, copy, cut, paste, and physical keyboard support.
-- UTF-8, UTF-16 LE/BE, and Windows-1252; BOM detection; LF, CRLF, and CR output. Encoding conversion rejects unrepresentable characters instead of silently replacing them.
-- No accounts, ads, analytics, runtime network dependencies, or internet permission. Drafts and settings are excluded from app backups and device transfer.
+- **Notes and files:** document tabs, recent files, open multiple files, Save, Save as, Save all, share text, and Android **Open with** support. Unsaved tabs prompt before closing, and local drafts help recover your work when you reopen the app.
+- **Find and replace:** next/previous match, match counts, highlighted results, case sensitivity, whole-word search, regular expressions, and capture-group replacements such as `$1`.
+- **Comfortable editing:** undo/redo, line numbers, current-line highlight, go to line, word wrap, horizontal scrolling, adjustable font size, light/dark themes, and document statistics.
+- **Code editing:** syntax highlighting for JavaScript, TypeScript, Java, Kotlin, C/C++, Python, JSON, HTML/XML, CSS, Markdown, SQL, shell scripts, and YAML. Includes auto indent, tabs or four spaces, block indent/unindent, duplicate line/selection, toggle line comments, case conversion, and quick bracket insertion.
+- **File formats:** UTF-8, UTF-16 LE/BE, and Windows-1252; byte-order mark detection; LF, CRLF, and CR line endings. The app warns before overwriting a file that changed elsewhere and rejects encoding changes that would lose characters.
+- **Touch and keyboards:** Android text selection, copy, cut, and paste, plus physical keyboard shortcuts. Primary actions are available through touch controls too.
+
+## Start writing
+
+Create a new tab to start a note, or choose **Open** to select files with Android's system file picker. Use **Save** to write changes to a file, or **Save as** to choose a new name and location. The file picker can access local storage and document providers installed on your device.
+
+Open tabs are kept as local recovery drafts. Recovery does not automatically overwrite the original files: use **Save** when you want to update them. Drafts are written shortly after edits and when the app pauses, so abrupt termination can lose the most recent keystrokes. Save important work explicitly.
+
+Use **Find** or **Ctrl+F** to search the current document, and **Replace** or **Ctrl+H** to open replacement controls. Replacement text is literal unless regex mode is enabled; an empty replacement deletes matches. If no match is selected, the first tap on **Replace** selects one.
 
 ## Keyboard shortcuts
+
+Connect a physical keyboard to use these shortcuts.
 
 | Shortcut | Action |
 | --- | --- |
@@ -42,52 +52,30 @@ This is an installable, debug-signed development build. It is not a Google Play 
 | Ctrl+G | Go to line |
 | Ctrl+Z | Undo |
 | Ctrl+Y / Ctrl+Shift+Z | Redo |
-| Ctrl+A / C / X / V | Select all / copy / cut / paste |
+| Ctrl+A / Ctrl+C / Ctrl+X / Ctrl+V | Select all / copy / cut / paste |
 | Tab / Shift+Tab | Indent / unindent |
 | Ctrl+D | Duplicate line or selected text |
 | Ctrl+/ | Toggle line comment |
 | Ctrl+Plus / Ctrl+Minus | Change editor font size |
 
-All primary actions are also available through touch controls. Replacement text is literal unless regex mode is enabled. An empty replacement deletes matches. A first tap on **Replace** selects a match if the editor does not already have one selected.
+## Privacy
 
-## Build on Windows
+The app works offline and has no accounts, ads, analytics, or internet permission. It uses Android's file picker instead of requesting broad storage access. Local recovery drafts and settings are excluded from app backups and device transfer.
 
-Install JDK 17 and Android SDK platform 35 / build tools 35.0.0. Set `ANDROID_HOME`, or create an ignored `local.properties` containing your SDK path:
+If you choose a cloud document provider in the file picker, that provider handles its own network access and storage. Text you share is handled by the receiving app.
 
-```properties
-sdk.dir=C:/Users/you/AppData/Local/Android/Sdk
-```
+## Current limits
 
-```powershell
-.\gradlew.bat testDebugUnitTest lintDebug assembleDebug
-.\gradlew.bat connectedDebugAndroidTest
-```
+- Up to **12 open tabs** and **2 MiB per file**. This editor is intended for notes and small text/code files.
+- The interface is currently **English**.
+- Desktop Notepad++ plugins, code execution, language servers, code folding, a project tree, and search across multiple files are not included. Search and highlighting also have [performance limits](docs/DEVELOPMENT.md#editor-limits).
 
-The second command needs an Android emulator or attached test device. The APK is generated at `app/build/outputs/apk/debug/app-debug.apk`.
+Notepad for Android is independent software inspired by desktop text editors; it is not affiliated with Notepad++.
 
-On Linux/macOS use `./gradlew` instead. The project pins Android Gradle Plugin 8.9.2, Gradle 8.11.1, and the official Gradle distribution checksum. Gradle downloads build dependencies on the first run.
+## Feedback and license
 
-## GitHub Actions
+Found a problem or have a feature request? [Open a GitHub issue](https://github.com/Shirochi-stack/notepad-for-android/issues) and include your app version, Android version, and steps to reproduce it. Avoid attaching private notes or files.
 
-The **Android build** workflow runs unit tests, Android lint, and APK compilation on pushes and pull requests. It can also be started manually. Successful runs publish the installable debug APK as `Notepad-for-Android-debug-APK`; verification reports are separate artifacts. APK artifacts expire after 30 days; a release attachment remains available until removed.
+Notepad for Android is free and open source under the [MIT License](LICENSE).
 
-Android instrumentation tests are run locally with the command above; the workflow does not provision an emulator.
-
-## Scope and practical limits
-
-This is a focused mobile editor, not a port of the desktop Notepad++ plugin ecosystem. It does not include plugins, language servers, code execution, terminal access, folding, a directory project tree, or multi-file search.
-
-- Up to 12 open tabs, 2 MiB per file, and 2,097,152 UTF-16 text units per document. An oversized insertion is rejected in full. Encoded output must also fit the file limit.
-- Undo has at most 100 snapshots and an 8-million-character budget per tab. Undo history resets after process recreation; the document content and selection recover.
-- Search navigation is limited to 10,000 results; refine the query above that threshold. Replace all can process more literal matches. Very complex regex operations are rejected after a bounded wait; if the native matcher is still finishing, literal search remains available.
-- Syntax highlighting covers the first 180,000 characters and up to 12,000 tokens. Search decoration displays up to 6,000 results plus the active match. Editing remains available beyond the highlighting limit.
-- Imported files are normalized to LF internally; the predominant original line ending is used when saving. Mixed line endings become consistent on save. UTF-16 without a BOM uses a heuristic; ambiguous legacy files should be verified before saving.
-- Android providers control their own write behavior. An interrupted provider write may require recovery from the local draft; source-file writes cannot be made transactional across every provider. If access to a moved or deleted file expires, use Save as.
-- Drafts are written shortly after edits and when the app pauses. Abrupt termination before the latest recovery write completes can lose the most recent keystrokes. Explicitly save important documents.
-- The interface is currently English.
-
-## Project structure
-
-`MainActivity` owns the workspace and Android file-picker flow. `SessionStore` persists atomic draft snapshots. `CodeEditor` provides native editing, line-number drawing, and bounded syntax/search decoration. Pure Java classes in `core` implement search, encoding, history, and line transforms, with JUnit tests. Android instrumentation tests exercise the real editor and document flows.
-
-For distribution beyond development, configure a durable release signing key outside version control and build/sign the release variant. Do not commit keystores, signing passwords, local SDK paths, or document drafts.
+Want to build or contribute? See the [development guide](docs/DEVELOPMENT.md).
