@@ -21,17 +21,35 @@
             </intent-filter>
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
+                <action android:name="android.intent.action.EDIT" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <data android:mimeType="text/*" />
-                <data android:mimeType="application/json" />
-                <data android:mimeType="application/javascript" />
-                <data android:mimeType="application/xml" />
+                <!-- File managers may label text/code as XHTML, SVG, octet-stream,
+                     vendor-specific types, or something else. Inspect file contents
+                     after opening instead of maintaining an extension/MIME whitelist. -->
+                <data android:scheme="content" />
+                <data android:scheme="file" />
+                <data android:mimeType="*/*" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <action android:name="android.intent.action.EDIT" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <!-- A separate filter is required for local URIs without a MIME type. -->
+                <data android:scheme="content" />
+                <data android:scheme="file" />
             </intent-filter>
             <intent-filter>
                 <action android:name="android.intent.action.SEND" />
+                <action android:name="android.intent.action.SEND_MULTIPLE" />
                 <category android:name="android.intent.category.DEFAULT" />
-                <data android:mimeType="text/plain" />
+                <data android:mimeType="*/*" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <action android:name="android.intent.action.SEND_MULTIPLE" />
+                <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </activity>
     </application>

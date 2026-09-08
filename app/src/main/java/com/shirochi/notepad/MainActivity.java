@@ -2,7 +2,6 @@ package com.shirochi.notepad;
 
 import android.app.Activity;
 import android.app.AlertDialog;
-import android.content.ClipData;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.res.Configuration;
@@ -45,6 +44,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.security.MessageDigest;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.ExecutorService;
@@ -59,6 +59,8 @@ public final class MainActivity extends Activity {
   private final Handler handler = new Handler(Looper.getMainLooper());
   private final List<Document> documents = new ArrayList<>();
   private final List<String> saving = new ArrayList<>();
+  private final LinkedHashSet<String> openingUris = new LinkedHashSet<>();
+  private final List<Intent> deferredIntents = new ArrayList<>();
   private final List<TextView> tabLabels = new ArrayList<>();
   private final List<SearchEngine.Match> matches = new ArrayList<>();
   private SharedPreferences prefs;
@@ -76,7 +78,7 @@ public final class MainActivity extends Activity {
   private int bg, surface, elevated, fg, muted, accent, border, fontSize;
   private String pendingSaveId;
   private Runnable pendingSaveCallback;
-  private Intent deferredIntent, deferredResultData;
+  private Intent deferredResultData;
   private int deferredRequest = -1, deferredResultCode;
   private LinearLayout root, tabs, searchPanel, replaceRow;
   private HorizontalScrollView tabScroll;
@@ -100,6 +102,7 @@ public final class MainActivity extends Activity {
     fontSize = prefs.getInt("fontSize", 16);
     if (state != null) pendingSaveId = state.getString("pendingSaveId");
     buildUi();
+    if (state == null) deferredIntents.add(getIntent());
     IO.execute(
         () -> {
           SessionStore.Session recovered = null;
@@ -133,10 +136,9 @@ public final class MainActivity extends Activity {
                   deferredRequest = -1;
                   deferredResultData = null;
                 }
-                if (deferredIntent != null) {
-                  handleIntent(deferredIntent);
-                  deferredIntent = null;
-                } else if (state == null) handleIntent(getIntent());
+                List<Intent> incoming = new ArrayList<>(deferredIntents);
+                deferredIntents.clear();
+                for (Intent request : incoming) handleIntent(request);
               });
         });
   }
@@ -859,11 +861,7 @@ public final class MainActivity extends Activity {
       return;
     }
     if (request == OPEN) {
-      ClipData clips = data.getClipData();
-      if (clips != null) {
-        for (int i = 0; i < clips.getItemCount(); i++)
-          openUri(clips.getItemAt(i).getUri(), data.getFlags());
-      } else if (data.getData() != null) openUri(data.getData(), data.getFlags());
+      openIncomingFiles(data);
     }
     if (request == CREATE && data.getData() != null) {
       Document d = byId(pendingSaveId);
@@ -878,37 +876,80 @@ public final class MainActivity extends Activity {
   }
 
   private void retainPermission(Uri uri, int flags) {
+    if (!"content".equalsIgnoreCase(uri.getScheme())) return;
     try {
       int grants =
           flags & (Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
       getContentResolver().takePersistableUriPermission(uri, grants);
-    } catch (SecurityException ignored) {
+    } catch (SecurityException | IllegalArgumentException ignored) {
       /* Some share providers grant access for this launch only. */
     }
   }
 
   private void openUri(Uri uri, int flags) {
+    openUri(uri, flags, null);
+  }
+
+  private void openUri(Uri uri, int flags, String encoding) {
     if (uri == null) return;
+    if (!IncomingFiles.isLocal(uri)) {
+      showError(
+          "Cannot open file", "Choose a file stored on your device or shared by a file provider.");
+      return;
+    }
     for (int i = 0; i < documents.size(); i++)
       if (documents.get(i).uri.equals(uri.toString())) {
         selectDocument(i);
         return;
       }
-    if (documents.size() >= MAX_TABS) {
+    String key = uri.toString();
+    if (openingUris.contains(key)) return;
+    capture();
+    boolean reusableBlank =
+        documents.size() == 1
+            && current().uri.isEmpty()
+            && current().text.isEmpty()
+            && !current().dirty();
+    if (documents.size() + openingUris.size() - (reusableBlank ? 1 : 0) >= MAX_TABS) {
       toast("Maximum of 12 open tabs.");
       return;
     }
     retainPermission(uri, flags);
+    openingUris.add(key);
     toast("Opening file…");
     IO.execute(
         () -> {
           try {
             byte[] bytes = readUri(uri);
-            TextCodec.Decoded decoded = TextCodec.decode(bytes);
+            TextCodec.Decoded decoded;
+            try {
+              decoded =
+                  encoding == null ? TextCodec.decode(bytes) : TextCodec.decode(bytes, encoding);
+            } catch (java.io.IOException e) {
+              runOnUiThread(
+                  () -> {
+                    openingUris.remove(key);
+                    if (isDestroyed()) return;
+                    new AlertDialog.Builder(this)
+                        .setTitle("Cannot read as text")
+                        .setMessage(readableError(e))
+                        .setPositiveButton(
+                            "Choose encoding…",
+                            (dialog, which) ->
+                                chooseEncoding(
+                                    "Open with encoding",
+                                    false,
+                                    selectedEncoding -> openUri(uri, flags, selectedEncoding)))
+                        .setNegativeButton("Cancel", null)
+                        .show();
+                  });
+              return;
+            }
             String name = displayName(uri);
             String hash = hash(bytes);
             runOnUiThread(
                 () -> {
+                  openingUris.remove(key);
                   if (isDestroyed()) return;
                   for (int i = 0; i < documents.size(); i++)
                     if (documents.get(i).uri.equals(uri.toString())) {
@@ -942,7 +983,11 @@ public final class MainActivity extends Activity {
                   schedulePersist();
                 });
           } catch (Exception e) {
-            runOnUiThread(() -> showError("Cannot open file", readableError(e)));
+            runOnUiThread(
+                () -> {
+                  openingUris.remove(key);
+                  if (!isDestroyed()) showError("Cannot open file", readableError(e));
+                });
           }
         });
   }
@@ -1167,12 +1212,23 @@ public final class MainActivity extends Activity {
   private void handleIntent(Intent intent) {
     if (intent == null) return;
     if (loading) {
-      deferredIntent = intent;
+      if (deferredIntents.size() < MAX_TABS) deferredIntents.add(intent);
+      else toast("Finish opening these files before sharing more.");
       return;
     }
-    if (Intent.ACTION_VIEW.equals(intent.getAction())) openUri(intent.getData(), intent.getFlags());
-    if (Intent.ACTION_SEND.equals(intent.getAction())) {
-      CharSequence text = intent.getCharSequenceExtra(Intent.EXTRA_TEXT);
+    String action = intent.getAction();
+    boolean viewing = Intent.ACTION_VIEW.equals(action) || Intent.ACTION_EDIT.equals(action);
+    boolean sharing =
+        Intent.ACTION_SEND.equals(action) || Intent.ACTION_SEND_MULTIPLE.equals(action);
+    if (!viewing && !sharing) return;
+    try {
+      // A file's caption or preview text must never replace its actual source contents.
+      if (openIncomingFiles(intent)) return;
+      if (!sharing) {
+        toast("No file was attached. Choose Open to select a file.");
+        return;
+      }
+      CharSequence text = IncomingFiles.sharedText(intent);
       if (text != null) {
         if (text.length() > MAX_BYTES) {
           toast("Shared text is too large.");
@@ -1187,11 +1243,22 @@ public final class MainActivity extends Activity {
           newDocument();
         }
         applyText(text.toString(), 0, 0);
-      } else {
-        Uri uri = intent.getParcelableExtra(Intent.EXTRA_STREAM);
-        if (uri != null) openUri(uri, intent.getFlags());
-      }
+      } else toast("No file or text was attached.");
+    } catch (RuntimeException error) {
+      showError(
+          "Cannot open attachment",
+          "The sending app did not provide a readable file. Try Open and select the file"
+              + " directly.");
     }
+  }
+
+  private boolean openIncomingFiles(Intent intent) {
+    List<Uri> uris = IncomingFiles.collect(intent, MAX_TABS + 1);
+    if (uris.isEmpty()) return false;
+    for (int i = 0; i < Math.min(uris.size(), MAX_TABS); i++)
+      openUri(uris.get(i), intent.getFlags());
+    if (uris.size() > MAX_TABS) toast("Only the first 12 files can be opened at once.");
+    return true;
   }
 
   private void addRecent(Document d) {
@@ -1376,7 +1443,8 @@ public final class MainActivity extends Activity {
     String[] choices = {
       "Encoding: " + d.encoding,
       "Line endings: " + d.lineEnding,
-      "Byte order mark: " + (d.bom ? "on" : "off")
+      "Byte order mark: " + (d.bom ? "on" : "off"),
+      "Reopen with encoding…"
     };
     new AlertDialog.Builder(this)
         .setTitle("Document format")
@@ -1384,17 +1452,14 @@ public final class MainActivity extends Activity {
             choices,
             (dialog, which) -> {
               if (which == 0) {
-                String[] encodings = {"UTF-8", "UTF-16LE", "UTF-16BE", "windows-1252"};
-                new AlertDialog.Builder(this)
-                    .setTitle("Save encoding")
-                    .setItems(
-                        encodings,
-                        (v, i) -> {
-                          d.encoding = encodings[i];
-                          if (d.encoding.equals("windows-1252")) d.bom = false;
-                          formatChanged();
-                        })
-                    .show();
+                chooseEncoding(
+                    "Save encoding",
+                    false,
+                    encoding -> {
+                      d.encoding = encoding;
+                      if (!supportsBom(encoding)) d.bom = false;
+                      formatChanged();
+                    });
               } else if (which == 1) {
                 String[] endings = {"LF", "CRLF", "CR"};
                 new AlertDialog.Builder(this)
@@ -1406,17 +1471,121 @@ public final class MainActivity extends Activity {
                           formatChanged();
                         })
                     .show();
-              } else {
-                if (d.encoding.equals("windows-1252")) {
-                  toast("Windows-1252 does not support a byte order mark.");
+              } else if (which == 2) {
+                if (!supportsBom(d.encoding)) {
+                  toast(d.encoding + " does not support a byte order mark.");
                   return;
                 }
                 d.bom = !d.bom;
                 formatChanged();
+              } else {
+                confirmReopen(d);
               }
             })
         .setNegativeButton("Done", null)
         .show();
+  }
+
+  private static boolean supportsBom(String encoding) {
+    return encoding.equals("UTF-8") || encoding.equals("UTF-16LE") || encoding.equals("UTF-16BE");
+  }
+
+  private void chooseEncoding(
+      String title, boolean includeAuto, java.util.function.Consumer<String> callback) {
+    List<String> encodings = new ArrayList<>(TextCodec.availableEncodings());
+    if (includeAuto) encodings.add(0, "Auto-detect");
+    new AlertDialog.Builder(this)
+        .setTitle(title)
+        .setItems(
+            encodings.toArray(new String[0]),
+            (dialog, which) ->
+                callback.accept(includeAuto && which == 0 ? null : encodings.get(which)))
+        .setNegativeButton("Cancel", null)
+        .show();
+  }
+
+  private void confirmReopen(Document d) {
+    if (d.uri.isEmpty()) {
+      toast("Save this document before reopening it with another encoding.");
+      return;
+    }
+    chooseEncoding(
+        "Reopen with encoding",
+        true,
+        encoding -> {
+          capture();
+          if (d.dirty()) {
+            new AlertDialog.Builder(this)
+                .setTitle("Discard unsaved changes?")
+                .setMessage(
+                    "Reopening reads the saved file again. Unsaved changes in this tab will be"
+                        + " lost.")
+                .setPositiveButton(
+                    "Discard and reopen", (dialog, which) -> reopenDocument(d, encoding))
+                .setNegativeButton("Cancel", null)
+                .show();
+          } else {
+            reopenDocument(d, encoding);
+          }
+        });
+  }
+
+  private void reopenDocument(Document d, String encoding) {
+    if (d.uri.isEmpty() || !documents.contains(d)) return;
+    String uri = d.uri;
+    if (saving.contains(d.id) || openingUris.contains(uri)) {
+      toast("Wait for the current file operation to finish.");
+      return;
+    }
+    capture();
+    String originalText = d.text;
+    String originalFormat = d.format();
+    openingUris.add(uri);
+    IO.execute(
+        () -> {
+          try {
+            byte[] bytes = readUri(Uri.parse(uri));
+            TextCodec.Decoded decoded =
+                encoding == null ? TextCodec.decode(bytes) : TextCodec.decode(bytes, encoding);
+            String diskHash = hash(bytes);
+            runOnUiThread(
+                () -> {
+                  openingUris.remove(uri);
+                  if (isDestroyed() || !documents.contains(d)) return;
+                  capture();
+                  if (!uri.equals(d.uri)
+                      || !originalText.equals(d.text)
+                      || !originalFormat.equals(d.format())
+                      || saving.contains(d.id)) {
+                    showError(
+                        "File was not reopened",
+                        "The document changed while it was loading. Your edits have been kept. Try"
+                            + " reopening again.");
+                    return;
+                  }
+                  d.text = decoded.text;
+                  d.encoding = decoded.encoding;
+                  d.lineEnding = decoded.lineEnding;
+                  d.bom = decoded.bom;
+                  d.diskHash = diskHash;
+                  d.start = d.end = d.scrollY = 0;
+                  d.markSaved(d.text, d.format());
+                  d.history.reset(d.text, 0, 0);
+                  if (current() == d) displayDocument();
+                  else updateTabLabels();
+                  schedulePersist();
+                });
+          } catch (Exception e) {
+            runOnUiThread(
+                () -> {
+                  openingUris.remove(uri);
+                  if (!isDestroyed())
+                    showError(
+                        "Cannot reopen file",
+                        readableError(e) + "\n\nYour current document has been kept.");
+                });
+          }
+        });
   }
 
   private void formatChanged() {
@@ -1593,7 +1762,7 @@ public final class MainActivity extends Activity {
 
   private void about() {
     new AlertDialog.Builder(this)
-        .setTitle(getString(R.string.app_name) + " 1.0.1")
+        .setTitle(getString(R.string.app_name) + " 1.0.2")
         .setMessage(
             "A focused text and code editor for Android.\n\n"
                 + "Your drafts stay on this device. No account, ads, analytics, or internet"

@@ -21,7 +21,10 @@ public final class TestFileProvider extends ContentProvider {
 
   @Override
   public String getType(Uri uri) {
-    return "text/plain";
+    String type = uri.getQueryParameter("mime");
+    if (type != null) return "none".equals(type) ? null : type;
+    String name = uri.getLastPathSegment();
+    return name != null && name.endsWith(".html") ? "text/html" : "text/plain";
   }
 
   @Override
@@ -67,7 +70,7 @@ public final class TestFileProvider extends ContentProvider {
 
   private File file(Uri uri) {
     String name = uri.getLastPathSegment();
-    if (name == null || !name.matches("[a-zA-Z0-9_-]+\\.txt")) {
+    if (name == null || !name.matches("[a-zA-Z0-9_-]+(?:\\.[a-zA-Z0-9_-]+)?")) {
       throw new IllegalArgumentException("Invalid fixture file name.");
     }
     File directory = new File(getContext().getCacheDir(), "file-operation-fixtures");

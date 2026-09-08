@@ -325,6 +325,8 @@ public class CodeEditor extends EditText {
         break;
       case "html":
       case "htm":
+      case "xhtml":
+      case "xht":
       case "xml":
       case "svg":
         language = "html";

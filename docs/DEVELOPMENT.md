@@ -53,7 +53,9 @@ The editor bounds memory use and expensive operations to keep small-file editing
 
 ## File handling and recovery
 
-Imported files are normalized to LF internally; the predominant original line ending is used when saving. Mixed line endings become consistent on save. UTF-16 without a BOM uses a heuristic, so verify ambiguous legacy files before saving. Encoding conversion rejects unrepresentable characters rather than silently replacing them.
+`MainActivity` registers `ACTION_VIEW` and `ACTION_EDIT` for local `content:` and `file:` URIs with any MIME type, plus separate filters for URIs without a MIME type. There is no extension whitelist. HTTP/HTTPS browsing is not registered. `ACTION_SEND` and `ACTION_SEND_MULTIPLE` accept file attachments; `IncomingFiles` collects and deduplicates URIs from intent data, `EXTRA_STREAM`, and `ClipData`. File contents are validated by the text codec, and imports retain the file-size and tab limits above. Broad intent matching makes the app available for text/code files reported with generic or vendor-specific MIME types; it does not add binary document conversion or guarantee inclusion in a file manager's custom chooser.
+
+Imported files are normalized to LF internally; the predominant original line ending is used when saving. Mixed line endings become consistent on save. Automatic decoding uses BOM detection, UTF-16 heuristics, strict UTF-8, and a Windows-1252 fallback. It does not detect every legacy encoding. **Document format → Reopen with encoding…** lets users decode the original file using an explicit encoding, and **Encoding** selects the save encoding. Available choices come from platform-supported text charsets, including common legacy encodings where available. Encoding conversion rejects unrepresentable characters rather than silently replacing them. Syntax highlighting is independent of which text files can be opened.
 
 Recovery snapshots are atomic within app-private storage and never automatically overwrite source files. Drafts are written shortly after edits and when the app pauses. Abrupt termination before the latest recovery write completes can lose the most recent keystrokes.
 
