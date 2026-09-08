@@ -185,7 +185,7 @@ public final class MainActivity extends Activity {
     IconView logo = new IconView(this, "note", accent);
     header.addView(logo, lp(44, 48));
     LinearLayout branding = column();
-    TextView title = label("Notepad Studio", 19, fg);
+    TextView title = label(getString(R.string.app_name), 18, fg);
     title.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
     branding.addView(title);
     subtitle = label("A little space to think.", 11, muted);
@@ -1251,7 +1251,7 @@ public final class MainActivity extends Activity {
       "Editor settings",
       "Share text",
       "Keyboard shortcuts",
-      "About Notepad Studio"
+      "About " + getString(R.string.app_name)
     };
     for (int i = 0; i < titles.length; i++) menu.getMenu().add(0, i, i, titles[i]);
     menu.setOnMenuItemClickListener(
@@ -1593,7 +1593,7 @@ public final class MainActivity extends Activity {
 
   private void about() {
     new AlertDialog.Builder(this)
-        .setTitle("Notepad Studio 1.0")
+        .setTitle(getString(R.string.app_name) + " 1.0.1")
         .setMessage(
             "A focused text and code editor for Android.\n\n"
                 + "Your drafts stay on this device. No account, ads, analytics, or internet"

@@ -14,5 +14,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = 'NotepadStudio'
+rootProject.name = 'NotepadForAndroid'
 include ':app'
