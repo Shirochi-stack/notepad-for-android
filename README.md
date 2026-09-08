@@ -2,7 +2,7 @@
 
 A free, open-source notepad and text editor for **Android 8.0 and later**. Write notes, edit text and code, keep several files open in tabs, and find or replace text with familiar **Ctrl+F** and **Ctrl+H** shortcuts.
 
-**[Download Notepad for Android v1.0.2 (APK)](https://github.com/Shirochi-stack/notepad-for-android/releases/download/v1.0.2/Notepad-for-Android-1.0.2-debug.apk)** · [Release notes](https://github.com/Shirochi-stack/notepad-for-android/releases/tag/v1.0.2) · [Report an issue](https://github.com/Shirochi-stack/notepad-for-android/issues)
+**[Download Notepad for Android v1.0.3 (APK)](https://github.com/Shirochi-stack/notepad-for-android/releases/download/v1.0.3/Notepad-for-Android-1.0.3-debug.apk)** · [Release notes](https://github.com/Shirochi-stack/notepad-for-android/releases/tag/v1.0.3) · [Report an issue](https://github.com/Shirochi-stack/notepad-for-android/issues)
 
 The current download is a debug-signed preview APK; the app is not listed on Google Play.
 
@@ -45,6 +45,23 @@ After installing the latest update, select a file in your file manager and choos
 The app checks file contents before editing. PDF, Word, Excel, images, archives, and other binary formats are not converted to text. The same **2 MiB per file** and **12 open tabs** limits apply to files opened from other apps.
 
 If a legacy text file opens with incorrect characters, choose **Document format → Reopen with encoding…** and select its original encoding. Encodings such as Shift_JIS, GB18030, and Big5 can be selected when supported by your device. Use **Document format → Encoding** to choose how to save the text. Check the text before saving; automatic detection cannot identify every legacy encoding.
+
+## Put HTML paragraphs on separate lines
+
+Choose **More options → Line break after `</p>`** to insert a line break after each closing paragraph tag. For example:
+
+```html
+<p>First paragraph</p><p>Second paragraph</p>
+```
+
+becomes:
+
+```html
+<p>First paragraph</p>
+<p>Second paragraph</p>
+```
+
+Select text first to format just that selection, or leave the selection empty to format the whole document. Existing line breaks are preserved, so running the command again does not add blank lines. Uppercase `</P>` tags work too. Use **Undo** or **Ctrl+Z** to reverse the operation, and **Save** to write the result to your file.
 
 ## Keyboard shortcuts
 

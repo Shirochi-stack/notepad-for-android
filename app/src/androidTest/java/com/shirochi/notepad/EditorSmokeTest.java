@@ -2,6 +2,7 @@ package com.shirochi.notepad;
 
 import static androidx.test.espresso.Espresso.onView;
 import static androidx.test.espresso.action.ViewActions.click;
+import static androidx.test.espresso.matcher.ViewMatchers.withContentDescription;
 import static androidx.test.espresso.matcher.ViewMatchers.withText;
 import static org.junit.Assert.*;
 
@@ -105,6 +106,99 @@ public final class EditorSmokeTest {
           assertEquals("cat cat\ncat", editor.getText().toString());
           shortcut(activity, KeyEvent.KEYCODE_Y, false);
           assertEquals("dog dog\ndog", editor.getText().toString());
+        });
+  }
+
+  @Test
+  public void paragraphMenuFormatsWholeDocumentOnceAndSupportsUndoRedo() {
+    String source = "<p>one</p><P>two</P>\n<p>three</p>";
+    String formatted = "<p>one</p>\n<P>two</P>\n<p>three</p>\n";
+    scenario.onActivity(
+        activity -> {
+          editor(activity).setText(source);
+          // A caret in the middle still applies the command to the entire document.
+          editor(activity).setSelection(source.indexOf("two"));
+        });
+    paragraphMenuCommand();
+    scenario.onActivity(activity -> assertEquals(formatted, editor(activity).getText().toString()));
+    paragraphMenuCommand();
+    scenario.onActivity(
+        activity -> {
+          CodeEditor editor = editor(activity);
+          assertEquals(
+              "Repeating the command must not add blank lines",
+              formatted,
+              editor.getText().toString());
+          editor.requestFocus();
+          shortcut(activity, KeyEvent.KEYCODE_Z, false);
+          assertEquals(
+              "The complete formatting operation needs only one Undo",
+              source,
+              editor.getText().toString());
+          shortcut(activity, KeyEvent.KEYCODE_Y, false);
+          assertEquals(formatted, editor.getText().toString());
+        });
+  }
+
+  @Test
+  public void paragraphMenuLimitsChangesToReversedSelection() {
+    String before = "<p>leave before</p>";
+    String selected = "<p>selected one</p><p>selected two</p>";
+    String after = "<p>leave after</p>";
+    String source = before + selected + after;
+    int start = before.length();
+    int end = start + selected.length();
+    scenario.onActivity(
+        activity -> {
+          editor(activity).setText(source);
+          editor(activity).setSelection(end, start);
+        });
+    paragraphMenuCommand();
+    scenario.onActivity(
+        activity -> {
+          CodeEditor editor = editor(activity);
+          assertEquals(
+              before + "<p>selected one</p>\n<p>selected two</p>\n" + after,
+              editor.getText().toString());
+          editor.requestFocus();
+          shortcut(activity, KeyEvent.KEYCODE_Z, false);
+          assertEquals(source, editor.getText().toString());
+          assertEquals(end, editor.getSelectionStart());
+          assertEquals(start, editor.getSelectionEnd());
+        });
+  }
+
+  @Test
+  public void paragraphMenuWithoutMatchingSelectedTagPreservesSelectionAndRedo() {
+    String source = "<p>outside selection</p>plain text";
+    String subsequentEdit = source + " later edit";
+    int start = source.indexOf("plain");
+    scenario.onActivity(
+        activity -> {
+          CodeEditor editor = editor(activity);
+          editor.setText(source);
+          editor.getText().append(" later edit");
+          editor.requestFocus();
+          shortcut(activity, KeyEvent.KEYCODE_Z, false);
+          assertEquals(source, editor.getText().toString());
+          editor.setSelection(start, start + 5);
+        });
+    paragraphMenuCommand();
+    scenario.onActivity(
+        activity -> {
+          CodeEditor editor = editor(activity);
+          assertEquals(
+              "No matching selected tag must leave the whole document unchanged",
+              source,
+              editor.getText().toString());
+          assertEquals(start, editor.getSelectionStart());
+          assertEquals(start + 5, editor.getSelectionEnd());
+          editor.requestFocus();
+          shortcut(activity, KeyEvent.KEYCODE_Y, false);
+          assertEquals(
+              "A no-op command must retain an existing Redo",
+              subsequentEdit,
+              editor.getText().toString());
         });
   }
 
@@ -340,6 +434,11 @@ public final class EditorSmokeTest {
 
   private static CodeEditor editor(MainActivity activity) {
     return activity.findViewById(R.id.editor);
+  }
+
+  private static void paragraphMenuCommand() {
+    onView(withContentDescription("More options")).perform(click());
+    onView(withText("Line break after </p>")).perform(click());
   }
 
   private static void shortcut(MainActivity activity, int keyCode, boolean shift) {

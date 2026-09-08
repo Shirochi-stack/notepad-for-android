@@ -91,6 +91,40 @@ public final class TextTransforms {
     return apply(text, start, end, edits);
   }
 
+  /**
+   * Inserts LF after literal closing paragraph tags, case-insensitively. A nonempty selection
+   * limits the operation to complete tags within it; a caret applies it to the whole document.
+   * Existing breaks, including breaks preceded by spaces or tabs, are kept without adding blank
+   * lines. This is a text transform, so matching tag text inside comments or strings is also
+   * processed.
+   */
+  public static Result breakAfterParagraphTags(String text, int start, int end) {
+    validateSelection(text, start, end);
+    int low = start == end ? 0 : Math.min(start, end);
+    int high = start == end ? text.length() : Math.max(start, end);
+    List<Edit> edits = new ArrayList<>();
+    for (int tag = low; tag + 4 <= high; tag++) {
+      if (text.charAt(tag) != '<' || text.charAt(tag + 1) != '/') continue;
+      char name = text.charAt(tag + 2);
+      if (name != 'p' && name != 'P') continue;
+      int close = tag + 3;
+      while (close < high && horizontalWhitespace(text.charAt(close))) close++;
+      if (close >= high || text.charAt(close) != '>') continue;
+      int afterTag = close + 1;
+      int following = afterTag;
+      while (following < text.length() && horizontalWhitespace(text.charAt(following))) following++;
+      if (following == text.length() || text.charAt(following) != '\n') {
+        edits.add(new Edit(afterTag, 0, "\n"));
+      }
+      tag = close;
+    }
+    return apply(text, start, end, edits);
+  }
+
+  private static boolean horizontalWhitespace(char character) {
+    return character == ' ' || character == '\t';
+  }
+
   private static void validateUnit(String unit) {
     Objects.requireNonNull(unit, "unit");
     if (!unit.equals("\t") && !unit.matches(" +")) {
@@ -98,11 +132,15 @@ public final class TextTransforms {
     }
   }
 
-  private static Range range(String text, int start, int end) {
+  private static void validateSelection(String text, int start, int end) {
     Objects.requireNonNull(text, "text");
     if (start < 0 || end < 0 || start > text.length() || end > text.length()) {
       throw new IllegalArgumentException("Selection is outside the document.");
     }
+  }
+
+  private static Range range(String text, int start, int end) {
+    validateSelection(text, start, end);
     int low = Math.min(start, end);
     int high = Math.max(start, end);
     int first = low == 0 ? 0 : text.lastIndexOf('\n', low - 1) + 1;

@@ -804,6 +804,26 @@ public final class MainActivity extends Activity {
     applyText(r.text, r.start, r.end);
   }
 
+  private void breakParagraphLines() {
+    Document d = current();
+    if (d == null) return;
+    TextTransforms.Result result =
+        TextTransforms.breakAfterParagraphTags(
+            d.text, editor.getSelectionStart(), editor.getSelectionEnd());
+    int added = result.text.length() - d.text.length();
+    if (added == 0) {
+      toast("No line breaks needed.");
+      return;
+    }
+    if (applyText(result.text, result.start, result.end)) {
+      editor.requestFocus();
+      toast(
+          added
+              + (added == 1 ? " line break added." : " line breaks added.")
+              + " Undo is available.");
+    }
+  }
+
   private void insertPair(String left, String right) {
     if (current() == null) return;
     int a = Math.min(editor.getSelectionStart(), editor.getSelectionEnd()),
@@ -1313,6 +1333,7 @@ public final class MainActivity extends Activity {
       "Duplicate line / selection",
       "Toggle line comment",
       "Convert case…",
+      "Line break after </p>",
       "Document format…",
       "Syntax language…",
       "Editor settings",
@@ -1350,21 +1371,24 @@ public final class MainActivity extends Activity {
               convertCase();
               break;
             case 8:
-              formatDialog();
+              breakParagraphLines();
               break;
             case 9:
-              languageDialog();
+              formatDialog();
               break;
             case 10:
-              settings();
+              languageDialog();
               break;
             case 11:
-              share();
+              settings();
               break;
             case 12:
-              shortcuts();
+              share();
               break;
             case 13:
+              shortcuts();
+              break;
+            case 14:
               about();
               break;
           }
@@ -1762,7 +1786,7 @@ public final class MainActivity extends Activity {
 
   private void about() {
     new AlertDialog.Builder(this)
-        .setTitle(getString(R.string.app_name) + " 1.0.2")
+        .setTitle(getString(R.string.app_name) + " 1.0.3")
         .setMessage(
             "A focused text and code editor for Android.\n\n"
                 + "Your drafts stay on this device. No account, ads, analytics, or internet"

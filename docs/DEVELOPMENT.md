@@ -65,7 +65,7 @@ The app detects external file changes before saving and asks before overwriting.
 
 The current downloadable APK is a debug-signed preview. Local builds and GitHub Actions builds may use different debug signing keys; Android accepts an in-place update only when the application ID and signing identity match and the version is compatible. Preserve the signing identity for published updates.
 
-Before distributing a release variant, configure a durable signing key outside version control. Do not commit keystores, signing passwords, local SDK paths, or document drafts. Keep user-facing release notes focused on changes, installation, compatibility, and known limitations; keep build reports in workflow artifacts.
+Before distributing a release variant, configure a durable signing key outside version control. Do not commit keystores, signing passwords, local SDK paths, or document drafts. Keep user-facing release notes focused on changes, installation, compatibility, and known limitations; keep build reports in workflow artifacts. Attach the APK and checksum to releases; keep licensing information in the repository.
 
 ## Contributions
 
