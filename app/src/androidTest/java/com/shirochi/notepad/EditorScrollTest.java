@@ -1,10 +1,13 @@
 package com.shirochi.notepad;
 
+import static androidx.test.espresso.Espresso.closeSoftKeyboard;
 import static androidx.test.espresso.Espresso.onView;
 import static androidx.test.espresso.action.ViewActions.click;
 import static androidx.test.espresso.action.ViewActions.swipeLeft;
 import static androidx.test.espresso.action.ViewActions.swipeUp;
 import static androidx.test.espresso.matcher.RootMatchers.isDialog;
+import static androidx.test.espresso.matcher.ViewMatchers.isDisplayed;
+import static androidx.test.espresso.matcher.ViewMatchers.withContentDescription;
 import static androidx.test.espresso.matcher.ViewMatchers.withId;
 import static androidx.test.espresso.matcher.ViewMatchers.withText;
 import static org.junit.Assert.*;
@@ -16,9 +19,17 @@ import android.graphics.Rect;
 import android.graphics.drawable.Drawable;
 import android.os.Build;
 import android.os.SystemClock;
+import android.view.InputDevice;
+import android.view.MotionEvent;
+import android.view.View;
 import android.view.ViewConfiguration;
+import android.view.WindowInsets;
 import androidx.test.core.app.ActivityScenario;
+import androidx.test.espresso.UiController;
+import androidx.test.espresso.ViewAction;
+import androidx.test.espresso.action.CoordinatesProvider;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
+import androidx.test.filters.SdkSuppress;
 import androidx.test.platform.app.InstrumentationRegistry;
 import com.shirochi.notepad.editor.CodeEditor;
 import java.io.File;
@@ -34,6 +45,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
+import org.hamcrest.Matcher;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -178,6 +190,249 @@ public final class EditorScrollTest {
           assertEquals(source, editor(activity).getText().toString());
           assertEquals(selected.get(), editor(activity).getSelectionStart());
         });
+  }
+
+  @Test
+  @SdkSuppress(minSdkVersion = 29)
+  public void fingerDragsAndTrackTapsNavigateVerticalBarWithoutEditingOrShowingKeyboard()
+      throws Exception {
+    String source = numberedLines(240);
+    prepareGestureDocument(source);
+    onView(withId(R.id.editor)).perform(scrollbarGesture(true, true, 0.85f));
+    awaitActivity(
+        activity -> editor(activity).getScrollY() > editor(activity).getLayout().getHeight() / 2,
+        "finger drag far down the document");
+    awaitStableScroll();
+    screenshot("vertical-touch-drag");
+    assertGesturePreservedDocument(source);
+    onView(withId(R.id.editor)).perform(scrollbarGesture(true, false, 0.25f));
+    awaitActivity(
+        activity ->
+            editor(activity).getScrollY() > 0
+                && editor(activity).getScrollY() < editor(activity).getLayout().getHeight() / 2,
+        "track tap to jump toward the document start");
+    awaitStableScroll();
+    onView(withId(R.id.editor)).perform(scrollbarGesture(true, true, 1.1f));
+    awaitActivity(
+        activity -> editor(activity).getScrollY() > 0 && !editor(activity).canScrollVertically(1),
+        "drag clamped at the document end");
+    awaitStableScroll();
+    onView(withId(R.id.editor)).perform(scrollbarGesture(true, true, -0.1f));
+    awaitActivity(
+        activity -> editor(activity).getScrollY() == 0 && !editor(activity).canScrollVertically(-1),
+        "drag clamped at the document start");
+    assertGesturePreservedDocument(source);
+    assertGesturePreservedRedo(source);
+
+    scenario.onActivity(activity -> editor(activity).setSelection(3, 8));
+    CoordinatesProvider text =
+        view -> {
+          CodeEditor editor = (CodeEditor) view;
+          int[] location = new int[2];
+          editor.getLocationOnScreen(location);
+          return new float[] {
+            location[0] + editor.getTotalPaddingLeft() + editor.getPaint().measureText("Line "),
+            location[1] + editor.getTotalPaddingTop() + editor.getLineHeight() / 2f
+          };
+        };
+    onView(withId(R.id.editor)).perform(touchscreenGesture(text, text, false));
+    awaitActivity(
+        activity ->
+            editor(activity).getSelectionStart() == editor(activity).getSelectionEnd()
+                && (Build.VERSION.SDK_INT < 30 || keyboardVisible(editor(activity))),
+        "ordinary text tap to place the caret and show the keyboard");
+    scenario.onActivity(activity -> assertEquals(source, editor(activity).getText().toString()));
+  }
+
+  @Test
+  @SdkSuppress(minSdkVersion = 29)
+  public void fingerDragsAndTrackTapsNavigateHorizontalBarAndPreserveRedo() throws Exception {
+    toggleSetting("Word wrap");
+    String source = "BEGIN " + "column_0123456789 ".repeat(60) + " END";
+    prepareGestureDocument(source);
+    onView(withId(R.id.editor)).perform(scrollbarGesture(false, true, 0.85f));
+    awaitActivity(
+        activity ->
+            editor(activity).getScrollX() > editor(activity).getLayout().getLineWidth(0) / 2,
+        "finger drag far across the long line");
+    awaitStableScroll();
+    screenshot("horizontal-touch-drag");
+    assertGesturePreservedDocument(source);
+    onView(withId(R.id.editor)).perform(scrollbarGesture(false, false, 0.25f));
+    awaitActivity(
+        activity ->
+            editor(activity).getScrollX() > 0
+                && editor(activity).getScrollX() < editor(activity).getLayout().getLineWidth(0) / 2,
+        "horizontal track tap to jump left");
+    awaitStableScroll();
+    onView(withId(R.id.editor)).perform(scrollbarGesture(false, true, 1.1f));
+    awaitActivity(
+        activity -> editor(activity).getScrollX() > 0 && !editor(activity).canScrollHorizontally(1),
+        "drag clamped at the long line end");
+    awaitStableScroll();
+    onView(withId(R.id.editor)).perform(scrollbarGesture(false, true, -0.1f));
+    awaitActivity(
+        activity ->
+            editor(activity).getScrollX() == 0 && !editor(activity).canScrollHorizontally(-1),
+        "drag clamped at the long line start");
+    assertGesturePreservedDocument(source);
+    assertGesturePreservedRedo(source);
+  }
+
+  private void prepareGestureDocument(String source) {
+    scenario.onActivity(
+        activity -> {
+          editor(activity).setText(source);
+          editor(activity).getText().append(" later edit");
+        });
+    onView(withContentDescription("Undo · Ctrl+Z")).perform(click());
+    scenario.onActivity(
+        activity -> {
+          assertEquals(source, editor(activity).getText().toString());
+          editor(activity).setSelection(3, 8);
+        });
+    closeSoftKeyboard();
+    awaitActivity(
+        activity -> !keyboardVisible(editor(activity)),
+        "keyboard hidden before scrollbar gestures");
+    awaitStableScroll();
+  }
+
+  private void assertGesturePreservedDocument(String source) {
+    scenario.onActivity(
+        activity -> {
+          assertEquals(
+              "Scrollbar gestures must not edit the document",
+              source,
+              editor(activity).getText().toString());
+          assertEquals(3, editor(activity).getSelectionStart());
+          assertEquals(8, editor(activity).getSelectionEnd());
+          assertFalse(
+              "Scrollbar touch must not summon the keyboard", keyboardVisible(editor(activity)));
+        });
+  }
+
+  private void assertGesturePreservedRedo(String source) {
+    onView(withContentDescription("Redo · Ctrl+Y")).perform(click());
+    scenario.onActivity(
+        activity -> assertEquals(source + " later edit", editor(activity).getText().toString()));
+    onView(withContentDescription("Undo · Ctrl+Z")).perform(click());
+    scenario.onActivity(activity -> assertEquals(source, editor(activity).getText().toString()));
+  }
+
+  private static boolean keyboardVisible(CodeEditor editor) {
+    if (Build.VERSION.SDK_INT < 30) return false;
+    WindowInsets insets = editor.getRootWindowInsets();
+    return insets != null && insets.isVisible(WindowInsets.Type.ime());
+  }
+
+  private static ViewAction scrollbarGesture(boolean vertical, boolean drag, float targetFraction) {
+    CoordinatesProvider destination =
+        view -> scrollbarPoint((CodeEditor) view, vertical, false, targetFraction);
+    CoordinatesProvider start =
+        drag ? view -> scrollbarPoint((CodeEditor) view, vertical, true, 0) : destination;
+    return touchscreenGesture(start, destination, drag);
+  }
+
+  private static float[] scrollbarPoint(
+      CodeEditor editor, boolean vertical, boolean thumb, float fraction) {
+    if (Build.VERSION.SDK_INT < 29)
+      throw new AssertionError("Scrollbar drawable inspection needs Android 10+");
+    Drawable drawable =
+        vertical
+            ? (thumb
+                ? editor.getVerticalScrollbarThumbDrawable()
+                : editor.getVerticalScrollbarTrackDrawable())
+            : (thumb
+                ? editor.getHorizontalScrollbarThumbDrawable()
+                : editor.getHorizontalScrollbarTrackDrawable());
+    assertNotNull("The rendered scrollbar must have a drawable", drawable);
+    Rect bounds = viewportBounds(drawable, editor);
+    assertFalse("The scrollbar must be rendered before touching it", bounds.isEmpty());
+    float x = bounds.centerX(), y = bounds.centerY();
+    if (!thumb) {
+      if (vertical) y = bounds.top + bounds.height() * fraction;
+      else x = bounds.left + bounds.width() * fraction;
+    }
+    // End beyond the track to exercise clamping, while keeping the touch on the display.
+    x = Math.max(2, Math.min(editor.getWidth() - 2, x));
+    y = Math.max(2, Math.min(editor.getHeight() - 2, y));
+    int[] location = new int[2];
+    editor.getLocationOnScreen(location);
+    return new float[] {location[0] + x, location[1] + y};
+  }
+
+  private static ViewAction touchscreenGesture(
+      CoordinatesProvider start, CoordinatesProvider end, boolean drag) {
+    return new ViewAction() {
+      @Override
+      public Matcher<View> getConstraints() {
+        return isDisplayed();
+      }
+
+      @Override
+      public String getDescription() {
+        return drag ? "drag with a touchscreen finger" : "tap with a touchscreen finger";
+      }
+
+      @Override
+      public void perform(UiController controller, View view) {
+        float[] from = start.calculateCoordinates(view), to = end.calculateCoordinates(view);
+        long downTime = SystemClock.uptimeMillis();
+        injectFinger(controller, downTime, MotionEvent.ACTION_DOWN, from[0], from[1]);
+        if (drag) {
+          for (int i = 1; i <= 18; i++) {
+            controller.loopMainThreadForAtLeast(16);
+            float fraction = i / 18f;
+            injectFinger(
+                controller,
+                downTime,
+                MotionEvent.ACTION_MOVE,
+                from[0] + (to[0] - from[0]) * fraction,
+                from[1] + (to[1] - from[1]) * fraction);
+          }
+        }
+        controller.loopMainThreadForAtLeast(32);
+        injectFinger(controller, downTime, MotionEvent.ACTION_UP, to[0], to[1]);
+        controller.loopMainThreadUntilIdle();
+      }
+    };
+  }
+
+  private static void injectFinger(
+      UiController controller, long downTime, int action, float x, float y) {
+    MotionEvent.PointerProperties pointer = new MotionEvent.PointerProperties();
+    pointer.id = 0;
+    pointer.toolType = MotionEvent.TOOL_TYPE_FINGER;
+    MotionEvent.PointerCoords coordinates = new MotionEvent.PointerCoords();
+    coordinates.x = x;
+    coordinates.y = y;
+    coordinates.pressure = 1;
+    coordinates.size = 1;
+    MotionEvent event =
+        MotionEvent.obtain(
+            downTime,
+            SystemClock.uptimeMillis(),
+            action,
+            1,
+            new MotionEvent.PointerProperties[] {pointer},
+            new MotionEvent.PointerCoords[] {coordinates},
+            0,
+            0,
+            1,
+            1,
+            0,
+            0,
+            InputDevice.SOURCE_TOUCHSCREEN,
+            0);
+    try {
+      assertTrue(
+          "Android must accept the touchscreen gesture event", controller.injectMotionEvent(event));
+    } catch (Exception error) {
+      throw new AssertionError(error);
+    } finally {
+      event.recycle();
+    }
   }
 
   private void toggleSetting(String label) {

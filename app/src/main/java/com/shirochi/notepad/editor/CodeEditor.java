@@ -1,9 +1,11 @@
 package com.shirochi.notepad.editor;
 
+import android.annotation.SuppressLint;
 import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
+import android.graphics.Rect;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.os.Build;
@@ -17,9 +19,11 @@ import android.text.style.ForegroundColorSpan;
 import android.util.AttributeSet;
 import android.util.TypedValue;
 import android.view.Gravity;
+import android.view.MotionEvent;
 import android.view.inputmethod.EditorInfo;
 import android.widget.EditText;
 import com.shirochi.notepad.R;
+import com.shirochi.notepad.core.ScrollBarMath;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -33,7 +37,7 @@ import java.util.regex.Pattern;
  * drawing only; they never replace the document text.
  */
 public class CodeEditor extends EditText {
-  public static final int DEFAULT_FONT_SIZE_SP = 14;
+  public static final int DEFAULT_FONT_SIZE_SP = 12;
 
   public interface SelectionListener {
     void onSelectionChanged(int start, int end);
@@ -154,6 +158,14 @@ public class CodeEditor extends EditText {
   private int numberColor;
   private int searchColor;
   private int activeSearchColor;
+  private Layout horizontalRangeLayout;
+  private int horizontalContentWidth = -1;
+  private boolean scrollbarTouchOwned;
+  private int scrollbarDragAxis; // 1 = vertical, 2 = horizontal, 0 = inactive/cancelled.
+  private int scrollbarPointerId = -1;
+  private float scrollbarStartPointer;
+  private float scrollbarGrabOffset;
+  private int scrollbarStartScroll;
 
   private final Runnable highlightRunnable = this::applySyntaxHighlighting;
 
@@ -217,6 +229,8 @@ public class CodeEditor extends EditText {
 
           @Override
           public void onTextChanged(CharSequence s, int start, int before, int count) {
+            horizontalContentWidth = -1;
+            cancelScrollbarDrag();
             updateLineIndex(s, start, before, count);
             updateGutterWidth(false);
           }
@@ -262,6 +276,8 @@ public class CodeEditor extends EditText {
   }
 
   public void setWordWrap(boolean enabled) {
+    horizontalContentWidth = -1;
+    cancelScrollbarDrag();
     wordWrap = enabled;
     setHorizontallyScrolling(!enabled);
     setHorizontalScrollBarEnabled(!enabled);
@@ -290,7 +306,174 @@ public class CodeEditor extends EditText {
   @Override
   public void setTextSize(int unit, float size) {
     super.setTextSize(unit, size);
+    horizontalContentWidth = -1;
     if (numberPaint != null) updateGutterWidth(true);
+  }
+
+  @Override
+  protected int computeHorizontalScrollExtent() {
+    return Math.max(0, getWidth() - getCompoundPaddingLeft() - getCompoundPaddingRight());
+  }
+
+  @Override
+  protected int computeHorizontalScrollRange() {
+    Layout layout = getLayout();
+    int extent = computeHorizontalScrollExtent();
+    if (layout == null || wordWrap) return extent;
+    // TextView uses its artificial, very wide layout width when wrapping is disabled. Measure the
+    // actual lines once per layout/text/font change so the native bar ends at real content.
+    if (horizontalRangeLayout != layout || horizontalContentWidth < 0) {
+      float widest = 0;
+      for (int line = 0; line < layout.getLineCount(); line++) {
+        widest = Math.max(widest, Math.max(layout.getLineWidth(line), layout.getLineRight(line)));
+      }
+      horizontalContentWidth = (int) Math.ceil(widest);
+      horizontalRangeLayout = layout;
+    }
+    return Math.max(extent, horizontalContentWidth);
+  }
+
+  @Override
+  protected void onLayout(boolean changed, int left, int top, int right, int bottom) {
+    super.onLayout(changed, left, top, right, bottom);
+    horizontalContentWidth = -1;
+    if (changed) cancelScrollbarDrag();
+  }
+
+  /**
+   * Scrollbar gestures stay in the native bar's blank padding lane. Passing them to EditText would
+   * move the caret and show the keyboard, so only ordinary text gestures reach its touch handler.
+   * Accessibility scrolling remains provided by the native EditText rather than a synthetic click.
+   */
+  @SuppressLint("ClickableViewAccessibility")
+  @Override
+  public boolean onTouchEvent(MotionEvent event) {
+    int action = event.getActionMasked();
+    if (action == MotionEvent.ACTION_DOWN) {
+      finishScrollbarGesture();
+      if (isEnabled() && beginScrollbarGesture(event)) return true;
+    }
+    if (!scrollbarTouchOwned) return super.onTouchEvent(event);
+    if (action == MotionEvent.ACTION_MOVE || action == MotionEvent.ACTION_UP) {
+      int index = event.findPointerIndex(scrollbarPointerId);
+      if (index < 0) cancelScrollbarDrag();
+      else moveScrollbar(event.getX(index), event.getY(index));
+    } else if (action == MotionEvent.ACTION_POINTER_UP
+        && event.getPointerId(event.getActionIndex()) == scrollbarPointerId) {
+      // Do not hand the thumb to another finger at a different position. Consume the remaining
+      // gesture until all fingers are lifted, without forwarding an orphaned MOVE to the editor.
+      cancelScrollbarDrag();
+    }
+    if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
+      finishScrollbarGesture();
+    }
+    return true;
+  }
+
+  private boolean beginScrollbarGesture(MotionEvent event) {
+    float x = event.getX();
+    float y = event.getY();
+    for (int axis = 1; axis <= 2; axis++) {
+      Rect track = scrollbarTrack(axis);
+      if (track.isEmpty()) continue;
+      boolean vertical = axis == 1;
+      // Expand outward through existing padding only; never capture a tap over document glyphs.
+      boolean hit =
+          vertical
+              ? x >= track.left && x < getWidth() && y >= track.top && y < track.bottom
+              : x >= track.left && x < track.right && y >= track.top && y < getHeight();
+      if (!hit) continue;
+      int extent = vertical ? computeVerticalScrollExtent() : computeHorizontalScrollExtent();
+      int range = vertical ? computeVerticalScrollRange() : computeHorizontalScrollRange();
+      int length = vertical ? track.height() : track.width();
+      int thickness = vertical ? track.width() : track.height();
+      int thumb = ScrollBarMath.thumbLength(length, thickness, extent, range);
+      if (thumb <= 0 || thumb >= length) continue;
+      int offset = vertical ? computeVerticalScrollOffset() : computeHorizontalScrollOffset();
+      int thumbOffset = ScrollBarMath.thumbOffset(length, thumb, extent, range, offset);
+      float point = vertical ? y : x;
+      int trackStart = vertical ? track.top : track.left;
+      if (point < trackStart + thumbOffset || point > trackStart + thumbOffset + thumb) {
+        offset =
+            ScrollBarMath.trackOffset(
+                length, thumb, extent, range, point - trackStart - thumb / 2f);
+        if (vertical) scrollTo(getScrollX(), offset);
+        else scrollTo(offset, getScrollY());
+        thumbOffset = ScrollBarMath.thumbOffset(length, thumb, extent, range, offset);
+      }
+      scrollbarTouchOwned = true;
+      scrollbarDragAxis = axis;
+      scrollbarPointerId = event.getPointerId(0);
+      scrollbarStartPointer = point;
+      scrollbarStartScroll = offset;
+      scrollbarGrabOffset = point - trackStart - thumbOffset;
+      cancelLongPress();
+      if (getParent() != null) getParent().requestDisallowInterceptTouchEvent(true);
+      return true;
+    }
+    return false;
+  }
+
+  private void moveScrollbar(float x, float y) {
+    if (scrollbarDragAxis == 0) return;
+    boolean vertical = scrollbarDragAxis == 1;
+    Rect track = scrollbarTrack(scrollbarDragAxis);
+    int extent = vertical ? computeVerticalScrollExtent() : computeHorizontalScrollExtent();
+    int range = vertical ? computeVerticalScrollRange() : computeHorizontalScrollRange();
+    int length = vertical ? track.height() : track.width();
+    int thickness = vertical ? track.width() : track.height();
+    int thumb = ScrollBarMath.thumbLength(length, thickness, extent, range);
+    if (track.isEmpty() || thumb <= 0 || thumb >= length) {
+      cancelScrollbarDrag();
+      return;
+    }
+    float point = vertical ? y : x;
+    float thumbPosition = point - (vertical ? track.top : track.left) - scrollbarGrabOffset;
+    int offset;
+    if (point == scrollbarStartPointer) offset = scrollbarStartScroll;
+    else if (thumbPosition <= 0) offset = 0;
+    else if (thumbPosition >= length - thumb) offset = range - extent;
+    else
+      offset =
+          ScrollBarMath.dragOffset(
+              length, thumb, extent, range, scrollbarStartScroll, point - scrollbarStartPointer);
+    if (vertical) scrollTo(getScrollX(), offset);
+    else scrollTo(offset, getScrollY());
+  }
+
+  private Rect scrollbarTrack(int axis) {
+    if (getLayout() == null || getScrollBarStyle() != SCROLLBARS_INSIDE_INSET) return new Rect();
+    int verticalWidth = isVerticalScrollBarEnabled() ? getVerticalScrollbarWidth() : 0;
+    int horizontalHeight = isHorizontalScrollBarEnabled() ? getHorizontalScrollbarHeight() : 0;
+    // AOSP View places inside-inset bars using user padding. Public getPaddingRight/Bottom also
+    // includes the reserved scrollbar inset, so subtract it to recover the native track bounds.
+    if (axis == 1 && isVerticalScrollBarEnabled()) {
+      int left = getWidth() - getPaddingRight();
+      return new Rect(
+          left,
+          getPaddingTop(),
+          left + verticalWidth,
+          getHeight() - getPaddingBottom() + horizontalHeight);
+    }
+    if (axis == 2 && !wordWrap && isHorizontalScrollBarEnabled()) {
+      int top = getHeight() - getPaddingBottom();
+      return new Rect(
+          getPaddingLeft(), top, getWidth() - getPaddingRight(), top + horizontalHeight);
+    }
+    return new Rect();
+  }
+
+  private void cancelScrollbarDrag() {
+    scrollbarDragAxis = 0;
+    scrollbarPointerId = -1;
+  }
+
+  private void finishScrollbarGesture() {
+    if (scrollbarTouchOwned && getParent() != null) {
+      getParent().requestDisallowInterceptTouchEvent(false);
+    }
+    scrollbarTouchOwned = false;
+    cancelScrollbarDrag();
   }
 
   /** Accepts a language name, extension (with or without a dot), or filename. */
@@ -665,6 +848,7 @@ public class CodeEditor extends EditText {
 
   @Override
   protected void onDetachedFromWindow() {
+    finishScrollbarGesture();
     removeCallbacks(highlightRunnable);
     super.onDetachedFromWindow();
   }

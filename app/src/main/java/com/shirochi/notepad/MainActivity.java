@@ -1786,7 +1786,7 @@ public final class MainActivity extends Activity {
 
   private void about() {
     new AlertDialog.Builder(this)
-        .setTitle(getString(R.string.app_name) + " 1.0.4")
+        .setTitle(getString(R.string.app_name) + " 1.0.5")
         .setMessage(
             "A focused text and code editor for Android.\n\n"
                 + "Your drafts stay on this device. No account, ads, analytics, or internet"
