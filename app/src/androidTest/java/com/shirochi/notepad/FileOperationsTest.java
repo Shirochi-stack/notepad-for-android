@@ -3,6 +3,7 @@ package com.shirochi.notepad;
 import static androidx.test.espresso.Espresso.onView;
 import static androidx.test.espresso.action.ViewActions.click;
 import static androidx.test.espresso.assertion.ViewAssertions.matches;
+import static androidx.test.espresso.matcher.RootMatchers.isDialog;
 import static androidx.test.espresso.matcher.ViewMatchers.isDisplayed;
 import static androidx.test.espresso.matcher.ViewMatchers.withText;
 import static org.junit.Assert.*;
@@ -16,6 +17,8 @@ import android.content.IntentFilter;
 import android.net.Uri;
 import android.os.SystemClock;
 import androidx.test.core.app.ActivityScenario;
+import androidx.test.espresso.NoMatchingRootException;
+import androidx.test.espresso.NoMatchingViewException;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.platform.app.InstrumentationRegistry;
 import com.shirochi.notepad.core.TextCodec;
@@ -113,10 +116,13 @@ public final class FileOperationsTest {
             .setData(target)
             .addFlags(
                 Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+    IntentFilter createDocument = new IntentFilter(Intent.ACTION_CREATE_DOCUMENT);
+    createDocument.addCategory(Intent.CATEGORY_OPENABLE);
+    createDocument.addDataType("text/plain");
     pickerMonitor =
         InstrumentationRegistry.getInstrumentation()
             .addMonitor(
-                new IntentFilter(Intent.ACTION_CREATE_DOCUMENT),
+                createDocument,
                 new Instrumentation.ActivityResult(Activity.RESULT_OK, result),
                 true);
     AtomicReference<Document> original = new AtomicReference<>();
@@ -126,6 +132,8 @@ public final class FileOperationsTest {
           editor(activity).setText("Save this first tab 🌿");
           original.set(current(activity));
           save(activity, true, () -> callback.set(true));
+          assertEquals(
+              "The native picker must be intercepted by this test", 1, pickerMonitor.getHits());
           assertEquals(original.get().id, field(activity, "pendingSaveId"));
           invoke(activity, "newDocument", new Class<?>[0]);
           editor(activity).setText("Leave this second tab alone");
@@ -153,15 +161,15 @@ public final class FileOperationsTest {
     write(uri, external);
     scenario.onActivity(activity -> save(activity, false, null));
     awaitSaved();
-    onView(withText("File changed outside this app")).check(matches(isDisplayed()));
+    awaitDialog("File changed outside this app");
     assertArrayEquals(external, bytes(uri));
     scenario.onActivity(activity -> assertTrue(current(activity).dirty()));
-    onView(withText("Keep editing")).perform(click());
+    onView(withText("Keep editing")).inRoot(isDialog()).perform(click());
     assertArrayEquals(external, bytes(uri));
     scenario.onActivity(activity -> save(activity, false, null));
     awaitSaved();
-    onView(withText("File changed outside this app")).check(matches(isDisplayed()));
-    onView(withText("Overwrite")).perform(click());
+    awaitDialog("File changed outside this app");
+    onView(withText("Overwrite")).inRoot(isDialog()).perform(click());
     awaitSaved();
     assertArrayEquals("My unsaved document".getBytes(StandardCharsets.UTF_8), bytes(uri));
     scenario.onActivity(activity -> assertFalse(current(activity).dirty()));
@@ -179,7 +187,7 @@ public final class FileOperationsTest {
           save(activity, false, null);
         });
     awaitSaved();
-    onView(withText("Could not save · draft kept")).check(matches(isDisplayed()));
+    awaitDialog("Could not save · draft kept");
     assertArrayEquals(original, bytes(writable));
     scenario.onActivity(
         activity -> {
@@ -187,7 +195,7 @@ public final class FileOperationsTest {
           assertEquals("Keep my unsaved changes 🌿", editor(activity).getText().toString());
           assertEquals("Original read-only file", current(activity).savedText);
         });
-    onView(withText("OK")).perform(click());
+    onView(withText("OK")).inRoot(isDialog()).perform(click());
     scenario.recreate();
     awaitReady();
     scenario.onActivity(
@@ -216,6 +224,19 @@ public final class FileOperationsTest {
   private void awaitSaved() {
     awaitActivity(activity -> saving(activity).isEmpty(), "save completion");
     InstrumentationRegistry.getInstrumentation().waitForIdleSync();
+  }
+
+  private static void awaitDialog(String title) {
+    long deadline = SystemClock.uptimeMillis() + 10_000;
+    do {
+      try {
+        onView(withText(title)).inRoot(isDialog()).check(matches(isDisplayed()));
+        return;
+      } catch (NoMatchingRootException | NoMatchingViewException notAttachedYet) {
+        if (SystemClock.uptimeMillis() >= deadline) throw notAttachedYet;
+        SystemClock.sleep(40);
+      }
+    } while (true);
   }
 
   private void awaitActivity(Predicate<MainActivity> condition, String description) {

@@ -2,6 +2,11 @@
 
 A native, offline text and code editor inspired by desktop editors such as Notepad++. Built in Java for **Android 8.0 and later**. Independent software; not affiliated with Notepad++.
 
+<p>
+  <img src="docs/screenshots/editor.png" width="280" alt="Notepad Studio with document tabs and JavaScript syntax highlighting" />
+  <img src="docs/screenshots/search-replace.png" width="280" alt="Find and replace with match highlights" />
+</p>
+
 ## Install
 
 Download `Notepad-Studio-1.0.0-debug.apk` from the private [Releases page](https://github.com/Shirochi-stack/notepad-studio-android/releases). On your Android device, open the APK and allow installation from the app you used to download it when Android prompts you.
