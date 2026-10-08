@@ -44,16 +44,15 @@ APK workflow artifacts expire after 30 days, and verification reports after 14 d
 
 ## Editor limits
 
-The editor bounds memory use and expensive operations to keep small-file editing practical on mobile devices:
+Files are edited in memory. File opening, saving, typing, pasting, text transforms, replacements, incoming attachments, and session recovery have no hardcoded file-size or tab-count limit. Practical capacity depends on the device and available memory. Expensive supporting operations remain bounded:
 
-- Up to 12 open tabs, 2 MiB per file, and 2,097,152 UTF-16 text units per document. An oversized insertion is rejected in full. Encoded output must also fit the file limit.
 - Undo keeps at most 100 snapshots and an 8-million-character budget per tab. Undo history resets after process recreation; document content and selection recover from the saved session.
 - Search navigation is limited to 10,000 results. Replace all can process more literal matches. Very complex regex operations are rejected after a bounded wait; if the native matcher is still finishing, literal search remains available.
 - Syntax highlighting covers the first 180,000 characters and up to 12,000 tokens. Search decoration displays up to 6,000 results plus the active match. Editing remains available beyond the highlighting limit.
 
 ## File handling and recovery
 
-`MainActivity` registers `ACTION_VIEW` and `ACTION_EDIT` for local `content:` and `file:` URIs with any MIME type, plus separate filters for URIs without a MIME type. There is no extension whitelist. HTTP/HTTPS browsing is not registered. `ACTION_SEND` and `ACTION_SEND_MULTIPLE` accept file attachments; `IncomingFiles` collects and deduplicates URIs from intent data, `EXTRA_STREAM`, and `ClipData`. File contents are validated by the text codec, and imports retain the file-size and tab limits above. Broad intent matching makes the app available for text/code files reported with generic or vendor-specific MIME types; it does not add binary document conversion or guarantee inclusion in a file manager's custom chooser.
+`MainActivity` registers `ACTION_VIEW` and `ACTION_EDIT` for local `content:` and `file:` URIs with any MIME type, plus separate filters for URIs without a MIME type. There is no extension whitelist. HTTP/HTTPS browsing is not registered. `ACTION_SEND` and `ACTION_SEND_MULTIPLE` accept file attachments; `IncomingFiles` collects and deduplicates URIs from intent data, `EXTRA_STREAM`, and `ClipData`. File contents are validated by the text codec; incoming files are deduplicated without truncating the attachment list. Broad intent matching makes the app available for text/code files reported with generic or vendor-specific MIME types; it does not add binary document conversion or guarantee inclusion in a file manager's custom chooser.
 
 Imported files are normalized to LF internally; the predominant original line ending is used when saving. Mixed line endings become consistent on save. Automatic decoding uses BOM detection, UTF-16 heuristics, strict UTF-8, and a Windows-1252 fallback. It does not detect every legacy encoding. **Document format → Reopen with encoding…** lets users decode the original file using an explicit encoding, and **Encoding** selects the save encoding. Available choices come from platform-supported text charsets, including common legacy encodings where available. Encoding conversion rejects unrepresentable characters rather than silently replacing them. Syntax highlighting is independent of which text files can be opened.
 

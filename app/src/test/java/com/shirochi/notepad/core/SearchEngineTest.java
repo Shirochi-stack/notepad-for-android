@@ -145,40 +145,50 @@ public class SearchEngineTest {
   }
 
   @Test
-  public void oversizedLiteralReplacementFailsWithoutChangingOriginal() {
+  public void literalReplacementCanGrowBeyondFormerDocumentLimit() {
     String original = repeat('a', 1000);
-    try {
-      SearchEngine.replaceAll(original, "a", repeat('b', 10_000), true, false, false);
-      fail("Output larger than the editor limit must be rejected before it is accumulated.");
-    } catch (IllegalArgumentException expected) {
-      assertTrue(expected.getMessage().contains("limit"));
-    }
+    String result = SearchEngine.replaceAll(original, "a", repeat('b', 3000), true, false, false);
+    assertEquals(repeat('b', 3_000_000), result);
     assertEquals(repeat('a', 1000), original);
   }
 
   @Test
-  public void hugeSingleRegexCaptureExpansionIsBoundedBeforeAppending() {
+  public void singleRegexCaptureExpansionCanGrowBeyondFormerDocumentLimit() {
     String original = repeat('a', 1_100_000);
-    try {
-      SearchEngine.replaceOne(
-          original, "(?s)(.*)", "$1$1$1$1", true, false, true, 0, original.length());
-      fail("Repeated captures must respect the output bound within one match.");
-    } catch (IllegalArgumentException expected) {
-      assertTrue(expected.getMessage().contains("limit"));
-    }
+    String result =
+        SearchEngine.replaceOne(
+            original, "(?s)(.*)", "$1$1$1$1", true, false, true, 0, original.length());
+    assertEquals(repeat('a', 4_400_000), result);
     assertEquals(1_100_000, original.length());
   }
 
   @Test
-  public void replacementTailCannotExceedTheLimit() {
-    String original = "x" + repeat('a', SearchEngine.MAX_OUTPUT_CHARACTERS - 1);
-    try {
-      SearchEngine.replaceOne(original, "x", "xx", true, false, false, 0, 1);
-      fail("The unchanged suffix also counts toward the output limit.");
-    } catch (IllegalArgumentException expected) {
-      assertTrue(expected.getMessage().contains("limit"));
-    }
+  public void replaceOnePreservesLargeUnchangedSuffix() {
+    String suffix = repeat('a', 3_000_000);
+    String original = "x" + suffix;
+    assertEquals(
+        "xx" + suffix, SearchEngine.replaceOne(original, "x", "xx", true, false, false, 0, 1));
     assertEquals(original, SearchEngine.replaceOne(original, "x", "x", true, false, false, 0, 1));
+  }
+
+  @Test
+  public void replacementSearchesAndPreservesOffsetsBeyondFormerDocumentLimit() {
+    String prefix = repeat('a', 3_000_000) + " ";
+    String original = prefix + "cat bobcat cat";
+    assertEquals(
+        prefix + "dog bobcat dog",
+        SearchEngine.replaceAll(original, "cat", "dog", true, true, false));
+    assertEquals(
+        prefix + "cat bobcat dog",
+        SearchEngine.replaceOne(
+            original, "cat", "dog", true, true, false, original.length() - 3, original.length()));
+  }
+
+  @Test
+  public void largeDocumentWithNoAcceptedReplacementIsReturnedWithoutCopy() {
+    String original = repeat('a', 3_000_000) + " bobcat";
+    assertSame(original, SearchEngine.replaceAll(original, "missing", "dog", true, false, false));
+    assertSame(original, SearchEngine.replaceAll(original, "cat", "dog", true, true, false));
   }
 
   private static String repeat(char character, int count) {

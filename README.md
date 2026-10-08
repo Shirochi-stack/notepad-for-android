@@ -2,7 +2,7 @@
 
 A free, open-source notepad and text editor for **Android 8.0 and later**. Write notes, edit text and code, keep several files open in tabs, and find or replace text with familiar **Ctrl+F** and **Ctrl+H** shortcuts.
 
-**[Download Notepad for Android v1.0.5 (APK)](https://github.com/Shirochi-stack/notepad-for-android/releases/download/v1.0.5/Notepad-for-Android-1.0.5-debug.apk)** · [Release notes](https://github.com/Shirochi-stack/notepad-for-android/releases/tag/v1.0.5) · [Report an issue](https://github.com/Shirochi-stack/notepad-for-android/issues)
+**[Download Notepad for Android v1.0.6 (APK)](https://github.com/Shirochi-stack/notepad-for-android/releases/download/v1.0.6/Notepad-for-Android-1.0.6-debug.apk)** · [Release notes](https://github.com/Shirochi-stack/notepad-for-android/releases/tag/v1.0.6) · [Report an issue](https://github.com/Shirochi-stack/notepad-for-android/issues)
 
 The current download is a debug-signed preview APK; the app is not listed on Google Play.
 
@@ -42,7 +42,7 @@ Open local text files with any extension, or no extension: HTML, XHTML, SVG, XML
 
 After installing the latest update, select a file in your file manager and choose **Open with** or **Edit**, then **Notepad for Android**. You can also **Share** one or several file attachments to the app. Generic or missing file types are accepted. Some file managers use their own app lists; try **Open as text**, **Share**, or **Open** inside Notepad for Android if it is absent from that list.
 
-The app checks file contents before editing. PDF, Word, Excel, images, archives, and other binary formats are not converted to text. The same **2 MiB per file** and **12 open tabs** limits apply to files opened from other apps.
+The app checks file contents before editing. PDF, Word, Excel, images, archives, and other binary formats are not converted to text.
 
 If a legacy text file opens with incorrect characters, choose **Document format → Reopen with encoding…** and select its original encoding. Encodings such as Shift_JIS, GB18030, and Big5 can be selected when supported by your device. Use **Document format → Encoding** to choose how to save the text. Check the text before saving; automatic detection cannot identify every legacy encoding.
 
@@ -93,7 +93,7 @@ If you choose a cloud document provider in the file picker, that provider handle
 
 ## Current limits
 
-- Up to **12 open tabs** and **2 MiB per file**. This editor is intended for notes and small text/code files.
+- There is no preset file-size or tab-count limit. Files are edited in memory, so practical capacity depends on your device.
 - The interface is currently **English**.
 - Desktop Notepad++ plugins, code execution, language servers, code folding, a project tree, and search across multiple files are not included. Search and highlighting also have [performance limits](docs/DEVELOPMENT.md#editor-limits).
 

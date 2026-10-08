@@ -12,22 +12,21 @@ import java.util.List;
 final class IncomingFiles {
   private IncomingFiles() {}
 
-  static List<Uri> collect(Intent intent, int limit) {
+  static List<Uri> collect(Intent intent) {
     LinkedHashSet<Uri> uris = new LinkedHashSet<>();
-    add(uris, intent.getData(), limit);
+    add(uris, intent.getData());
     Bundle extras = intent.getExtras();
     Object stream = extras == null ? null : extras.get(Intent.EXTRA_STREAM);
-    if (stream instanceof Uri) add(uris, (Uri) stream, limit);
+    if (stream instanceof Uri) add(uris, (Uri) stream);
     else if (stream instanceof Iterable<?>) {
       for (Object item : (Iterable<?>) stream) {
-        if (item instanceof Uri) add(uris, (Uri) item, limit);
-        if (uris.size() >= limit) break;
+        if (item instanceof Uri) add(uris, (Uri) item);
       }
     }
     ClipData clips = intent.getClipData();
     if (clips != null) {
-      for (int i = 0; i < clips.getItemCount() && uris.size() < limit; i++) {
-        add(uris, clips.getItemAt(i).getUri(), limit);
+      for (int i = 0; i < clips.getItemCount(); i++) {
+        add(uris, clips.getItemAt(i).getUri());
       }
     }
     return new ArrayList<>(uris);
@@ -46,7 +45,7 @@ final class IncomingFiles {
     return uri != null && ("content".equals(uri.getScheme()) || "file".equals(uri.getScheme()));
   }
 
-  private static void add(LinkedHashSet<Uri> uris, Uri uri, int limit) {
-    if (uri != null && uris.size() < limit) uris.add(uri);
+  private static void add(LinkedHashSet<Uri> uris, Uri uri) {
+    if (uri != null) uris.add(uri);
   }
 }

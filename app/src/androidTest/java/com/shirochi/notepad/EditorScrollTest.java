@@ -456,6 +456,7 @@ public final class EditorScrollTest {
           if (Build.VERSION.SDK_INT >= 29) {
             frame.vertical = viewportBounds(editor.getVerticalScrollbarThumbDrawable(), editor);
             frame.horizontal = viewportBounds(editor.getHorizontalScrollbarThumbDrawable(), editor);
+            assertScrollbarAlignment(editor);
           }
         });
     Bitmap bitmap = InstrumentationRegistry.getInstrumentation().getUiAutomation().takeScreenshot();
@@ -485,6 +486,33 @@ public final class EditorScrollTest {
     Rect result = new Rect(drawable.getBounds());
     result.offset(-editor.getScrollX(), -editor.getScrollY());
     return result;
+  }
+
+  private static void assertScrollbarAlignment(CodeEditor editor) {
+    if (Build.VERSION.SDK_INT < 29) return;
+    int textRight = editor.getWidth() - editor.getCompoundPaddingRight();
+    if (editor.canScrollVertically(-1) || editor.canScrollVertically(1)) {
+      Rect track = viewportBounds(editor.getVerticalScrollbarTrackDrawable(), editor);
+      assertFalse("Vertical overflow must draw the native scrollbar track", track.isEmpty());
+      assertEquals(
+          "The vertical track must reach the editor's right edge", editor.getWidth(), track.right);
+      assertEquals(
+          "The text viewport must meet the scrollbar without a blank gutter",
+          textRight,
+          track.left);
+      assertEquals(
+          "The native scrollbar lane must remain reserved for its full width",
+          editor.getVerticalScrollbarWidth(),
+          track.width());
+    }
+    if (editor.canScrollHorizontally(-1) || editor.canScrollHorizontally(1)) {
+      Rect track = viewportBounds(editor.getHorizontalScrollbarTrackDrawable(), editor);
+      assertFalse("Horizontal overflow must draw the native scrollbar track", track.isEmpty());
+      assertEquals(
+          "The horizontal track must fill the text viewport to its right edge",
+          textRight,
+          track.right);
+    }
   }
 
   private static void assertVerticalThumbContrast(ScrollbarFrame frame) {

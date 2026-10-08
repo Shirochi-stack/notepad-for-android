@@ -258,12 +258,14 @@ public final class EditorSmokeTest {
   }
 
   @Test
-  public void incomingSharedTextAtTabLimitPreservesCurrentDocument() {
+  public void twentyCreatedDraftsAndAnotherSharedTabSurviveRecreation() {
     scenario.onActivity(
         activity -> {
-          editor(activity).setText("Keep the first document");
-          for (int i = 1; i < 12; i++) shortcut(activity, KeyEvent.KEYCODE_N, false);
-          editor(activity).setText("Keep the twelfth document");
+          for (int i = 0; i < 20; i++) {
+            if (i > 0) shortcut(activity, KeyEvent.KEYCODE_N, false);
+            editor(activity).setText("Unsaved draft " + i);
+            editor(activity).setSelection(i % 5);
+          }
           Intent launchIntent = activity.getIntent();
           activity.onNewIntent(
               new Intent(activity, MainActivity.class)
@@ -272,9 +274,20 @@ public final class EditorSmokeTest {
                   .putExtra(Intent.EXTRA_TEXT, "Incoming shared text"));
           // ActivityScenario identifies the activity by its launch intent during close().
           activity.setIntent(launchIntent);
-          assertEquals("Keep the twelfth document", editor(activity).getText().toString());
+          assertEquals("Incoming shared text", editor(activity).getText().toString());
+        });
+    scenario.recreate();
+    awaitReady();
+    scenario.onActivity(
+        activity -> {
+          assertEquals("Incoming shared text", editor(activity).getText().toString());
+          for (int i = 0; i < 20; i++) {
+            shortcut(activity, KeyEvent.KEYCODE_TAB, false);
+            assertEquals("Unsaved draft " + i, editor(activity).getText().toString());
+            assertEquals(i % 5, editor(activity).getSelectionStart());
+          }
           shortcut(activity, KeyEvent.KEYCODE_TAB, false);
-          assertEquals("Keep the first document", editor(activity).getText().toString());
+          assertEquals("Incoming shared text", editor(activity).getText().toString());
         });
   }
 

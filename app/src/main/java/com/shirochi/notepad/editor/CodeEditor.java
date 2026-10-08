@@ -338,6 +338,21 @@ public class CodeEditor extends EditText {
     super.onLayout(changed, left, top, right, bottom);
     horizontalContentWidth = -1;
     if (changed) cancelScrollbarDrag();
+    updateScrollbarGestureExclusion();
+  }
+
+  private void updateScrollbarGestureExclusion() {
+    if (Build.VERSION.SDK_INT < 29) return;
+    Rect track = scrollbarTrack(2);
+    List<Rect> exclusions = Collections.emptyList();
+    if (!track.isEmpty() && computeHorizontalScrollRange() > computeHorizontalScrollExtent()) {
+      // A thumb at the far right sits inside Android's Back-gesture zone. Reserve only the
+      // horizontal scrollbar's touch lane so dragging it left cannot close the document screen.
+      track.bottom = getHeight();
+      exclusions = Collections.singletonList(track);
+    }
+    if (!getSystemGestureExclusionRects().equals(exclusions))
+      setSystemGestureExclusionRects(exclusions);
   }
 
   /**
@@ -659,13 +674,17 @@ public class CodeEditor extends EditText {
     numberPaint.setTextSize(getTextSize() * 0.85f);
     gutterWidth =
         showLineNumbers ? (int) Math.ceil(numberPaint.measureText("0") * digits) + dp(22) : 0;
-    setPadding(gutterWidth + dp(12), dp(14), dp(16), dp(28));
+    // INSIDE_INSET already reserves the native scrollbar width. Extra right padding would
+    // shrink the text viewport and move the scrollbar away from the editor's outer edge.
+    setPadding(gutterWidth + dp(12), dp(14), 0, dp(28));
     requestLayout();
     invalidate();
   }
 
   @Override
   protected void onDraw(Canvas canvas) {
+    // TextView can relayout text internally without calling onLayout on this fixed-size view.
+    updateScrollbarGestureExclusion();
     Layout layout = getLayout();
     int scrollX = getScrollX();
     int scrollY = getScrollY();

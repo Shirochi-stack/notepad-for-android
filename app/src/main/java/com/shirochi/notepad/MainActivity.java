@@ -54,7 +54,7 @@ import org.json.JSONObject;
 
 /** Native, offline document editor. All provider and draft I/O is serialized off the UI thread. */
 public final class MainActivity extends Activity {
-  private static final int OPEN = 10, CREATE = 11, MAX_BYTES = 2 * 1024 * 1024, MAX_TABS = 12;
+  private static final int OPEN = 10, CREATE = 11;
   private static final ExecutorService IO = Executors.newSingleThreadExecutor();
   private final Handler handler = new Handler(Looper.getMainLooper());
   private final List<Document> documents = new ArrayList<>();
@@ -238,14 +238,6 @@ public final class MainActivity extends Activity {
     editor.setEditorFontSize(fontSize);
     editor.setHint("Start writing…");
     editor.setHintTextColor(muted);
-    editor.setFilters(
-        new InputFilter[] {
-          (source, start, end, dest, dstart, dend) -> {
-            if (dest.length() - (dend - dstart) + end - start <= MAX_BYTES) return null;
-            toast("This edit exceeds the 2 million character limit. Nothing was inserted.");
-            return dest.subSequence(dstart, dend);
-          }
-        });
     root.addView(editor, new LinearLayout.LayoutParams(-1, 0, 1));
     attachEditor();
     divider(root);
@@ -384,10 +376,6 @@ public final class MainActivity extends Activity {
 
   private void newDocument() {
     if (loading) return;
-    if (documents.size() >= MAX_TABS) {
-      toast("Close a tab before opening another (12 tabs maximum).");
-      return;
-    }
     capture();
     Document d = new Document();
     do {
@@ -725,10 +713,6 @@ public final class MainActivity extends Activity {
   private boolean applyText(String text, int start, int end) {
     Document d = current();
     if (d == null) return false;
-    if (text.length() > MAX_BYTES) {
-      toast("This edit exceeds the 2 million character limit. No changes made.");
-      return false;
-    }
     d.history.record(d.text, editor.getSelectionStart(), editor.getSelectionEnd());
     applying = true;
     editor.setText(text);
@@ -925,15 +909,6 @@ public final class MainActivity extends Activity {
     String key = uri.toString();
     if (openingUris.contains(key)) return;
     capture();
-    boolean reusableBlank =
-        documents.size() == 1
-            && current().uri.isEmpty()
-            && current().text.isEmpty()
-            && !current().dirty();
-    if (documents.size() + openingUris.size() - (reusableBlank ? 1 : 0) >= MAX_TABS) {
-      toast("Maximum of 12 open tabs.");
-      return;
-    }
     retainPermission(uri, flags);
     openingUris.add(key);
     toast("Opening file…");
@@ -976,10 +951,6 @@ public final class MainActivity extends Activity {
                       selectDocument(i);
                       return;
                     }
-                  if (documents.size() >= MAX_TABS) {
-                    toast("Maximum of 12 open tabs.");
-                    return;
-                  }
                   capture();
                   Document d = new Document();
                   d.name = name;
@@ -1019,9 +990,6 @@ public final class MainActivity extends Activity {
       byte[] buffer = new byte[16384];
       int count;
       while ((count = in.read(buffer)) != -1) {
-        if (out.size() + count > MAX_BYTES)
-          throw new java.io.IOException(
-              "Files up to 2 MiB are supported. Choose a smaller text file.");
         out.write(buffer, 0, count);
       }
       return out.toByteArray();
@@ -1098,9 +1066,6 @@ public final class MainActivity extends Activity {
         () -> {
           try {
             byte[] bytes = TextCodec.encode(text, encoding, lineEnding, bom);
-            if (bytes.length > MAX_BYTES)
-              throw new java.io.IOException(
-                  "The encoded file exceeds 2 MiB. Reduce its size before saving.");
             if (!force && !originalHash.isEmpty() && !hash(readUri(target)).equals(originalHash)) {
               runOnUiThread(
                   () -> {
@@ -1232,8 +1197,7 @@ public final class MainActivity extends Activity {
   private void handleIntent(Intent intent) {
     if (intent == null) return;
     if (loading) {
-      if (deferredIntents.size() < MAX_TABS) deferredIntents.add(intent);
-      else toast("Finish opening these files before sharing more.");
+      deferredIntents.add(intent);
       return;
     }
     String action = intent.getAction();
@@ -1250,16 +1214,8 @@ public final class MainActivity extends Activity {
       }
       CharSequence text = IncomingFiles.sharedText(intent);
       if (text != null) {
-        if (text.length() > MAX_BYTES) {
-          toast("Shared text is too large.");
-          return;
-        }
         boolean blank = current() != null && current().text.isEmpty() && current().uri.isEmpty();
         if (!blank) {
-          if (documents.size() >= MAX_TABS) {
-            toast("Close a tab before importing shared text.");
-            return;
-          }
           newDocument();
         }
         applyText(text.toString(), 0, 0);
@@ -1273,11 +1229,9 @@ public final class MainActivity extends Activity {
   }
 
   private boolean openIncomingFiles(Intent intent) {
-    List<Uri> uris = IncomingFiles.collect(intent, MAX_TABS + 1);
+    List<Uri> uris = IncomingFiles.collect(intent);
     if (uris.isEmpty()) return false;
-    for (int i = 0; i < Math.min(uris.size(), MAX_TABS); i++)
-      openUri(uris.get(i), intent.getFlags());
-    if (uris.size() > MAX_TABS) toast("Only the first 12 files can be opened at once.");
+    for (Uri uri : uris) openUri(uri, intent.getFlags());
     return true;
   }
 
@@ -1786,12 +1740,12 @@ public final class MainActivity extends Activity {
 
   private void about() {
     new AlertDialog.Builder(this)
-        .setTitle(getString(R.string.app_name) + " 1.0.5")
+        .setTitle(getString(R.string.app_name) + " 1.0.6")
         .setMessage(
             "A focused text and code editor for Android.\n\n"
                 + "Your drafts stay on this device. No account, ads, analytics, or internet"
                 + " permission. Files are opened through Android’s file picker.\n\n"
-                + "Supports up to 12 tabs and 2 MiB per file. Syntax highlighting is lightweight;"
+                + "Syntax highlighting is lightweight;"
                 + " language servers, plugins, and desktop Notepad++ extensions are not"
                 + " included.\n\n"
                 + "Independent software, inspired by desktop text editors. Not affiliated with"

@@ -10,6 +10,8 @@ import static org.junit.Assert.*;
 
 import android.app.Activity;
 import android.app.Instrumentation;
+import android.content.ClipData;
+import android.content.ClipboardManager;
 import android.content.ContentResolver;
 import android.content.Context;
 import android.content.Intent;
@@ -106,6 +108,71 @@ public final class FileOperationsTest {
         });
     awaitSaved();
     assertArrayEquals(TextCodec.encode("After\nمرحبا", "UTF-16BE", "LF", true), bytes(uri));
+  }
+
+  @Test
+  public void largeFileSupportsNativePasteTransformUndoAndByteExactSave() throws Exception {
+    // Short unwrapped lines keep the fixture practical while exceeding both former size limits.
+    String original = ("<p>" + "0123456789abcdef".repeat(7) + "</p>\n").repeat(18_000);
+    byte[] originalBytes = TextCodec.encode(original, "UTF-8", "CRLF", true);
+    assertTrue(original.length() > 2 * 1024 * 1024);
+    assertTrue(originalBytes.length > 2 * 1024 * 1024);
+    Uri uri = fixture(originalBytes);
+    scenario.onActivity(activity -> editor(activity).setWordWrap(false));
+    open(uri);
+    String prefix = "# Edited large document\n";
+    String pasted = "<p>Pasted café 🌿</p>";
+    String edited = prefix + original + pasted;
+    String formatted = edited + "\n";
+    scenario.onActivity(
+        activity -> {
+          CodeEditor editor = editor(activity);
+          assertEquals("Opening must preserve every character", original.length(), editor.length());
+          assertTrue("The full source must be readable", original.contentEquals(editor.getText()));
+          assertEquals("UTF-8", current(activity).encoding);
+          assertEquals("CRLF", current(activity).lineEnding);
+          assertTrue(current(activity).bom);
+          assertFalse(current(activity).dirty());
+          editor.getText().insert(0, prefix);
+          editor.setSelection(editor.length());
+          ClipboardManager clipboard =
+              (ClipboardManager) activity.getSystemService(Context.CLIPBOARD_SERVICE);
+          assertNotNull(clipboard);
+          clipboard.setPrimaryClip(ClipData.newPlainText("Large document paste", pasted));
+          try {
+            assertTrue(
+                "The native Paste action must accept text beyond the old limit",
+                editor.onTextContextMenuItem(android.R.id.paste));
+          } finally {
+            clipboard.setPrimaryClip(ClipData.newPlainText("", ""));
+          }
+          assertEquals(edited.length(), editor.length());
+          assertTrue(
+              "Editing and pasting must retain the whole document",
+              edited.contentEquals(editor.getText()));
+          assertTrue(current(activity).dirty());
+        });
+    assertArrayEquals(
+        "Large edits must not overwrite the source before Save", originalBytes, bytes(uri));
+    scenario.onActivity(
+        activity -> {
+          invoke(activity, "breakParagraphLines", new Class<?>[0]);
+          assertEquals(
+              "The transform output may exceed the old character limit",
+              formatted.length(),
+              editor(activity).length());
+          assertTrue(formatted.contentEquals(editor(activity).getText()));
+          invoke(activity, "undo", new Class<?>[] {boolean.class}, false);
+          assertTrue(
+              "The large transform must be one undoable edit",
+              edited.contentEquals(editor(activity).getText()));
+          invoke(activity, "undo", new Class<?>[] {boolean.class}, true);
+          assertTrue(formatted.contentEquals(editor(activity).getText()));
+          save(activity, false, null);
+        });
+    awaitSaved();
+    assertArrayEquals(TextCodec.encode(formatted, "UTF-8", "CRLF", true), bytes(uri));
+    scenario.onActivity(activity -> assertFalse(current(activity).dirty()));
   }
 
   @Test

@@ -19,7 +19,6 @@ import java.util.regex.PatternSyntaxException;
 /** Literal/regular-expression search using UTF-16 offsets, as Android text widgets do. */
 public final class SearchEngine {
   public static final int MAX_MATCHES = 10_000;
-  public static final int MAX_OUTPUT_CHARACTERS = 2 * 1024 * 1024;
   private static final long REGEX_BUDGET_NANOS = 150_000_000L;
   private static final AtomicBoolean REGEX_BUSY = new AtomicBoolean();
   // The busy gate allows only one unfinished operation, with no waiting work.
@@ -107,16 +106,20 @@ public final class SearchEngine {
     Objects.requireNonNull(replacement, "replacement");
     if (query.isEmpty()) return text;
     Matcher matcher = matcher(text, query, caseSensitive, regex);
-    StringBuilder result = new StringBuilder(Math.min(text.length(), MAX_OUTPUT_CHARACTERS));
+    StringBuilder result = null;
     int appended = 0;
     while (find(matcher)) {
       if (!wholeWord || hasWordBoundaries(text, matcher.start(), matcher.end())) {
-        appendBounded(result, text, appended, matcher.start());
+        // Allocate only after an accepted match and grow with the output. A large document with
+        // no matches needs no copy; a shrinking replacement need not reserve the original size.
+        if (result == null) result = new StringBuilder();
+        appendText(result, text, appended, matcher.start());
         appendReplacement(matcher, text, result, replacement, regex);
         appended = matcher.end();
       }
     }
-    appendBounded(result, text, appended, text.length());
+    if (result == null) return text;
+    appendText(result, text, appended, text.length());
     return result.toString();
   }
 
@@ -157,10 +160,10 @@ public final class SearchEngine {
       if (matcher.start() == matchStart
           && matcher.end() == matchEnd
           && (!wholeWord || hasWordBoundaries(text, matchStart, matchEnd))) {
-        StringBuilder result = new StringBuilder(Math.min(text.length(), MAX_OUTPUT_CHARACTERS));
-        appendBounded(result, text, 0, matcher.start());
+        StringBuilder result = new StringBuilder();
+        appendText(result, text, 0, matcher.start());
         appendReplacement(matcher, text, result, replacement, regex);
-        appendBounded(result, text, matcher.end(), text.length());
+        appendText(result, text, matcher.end(), text.length());
         return result.toString();
       }
     }
@@ -192,11 +195,11 @@ public final class SearchEngine {
     return new IllegalArgumentException("Pattern is too complex. Simplify the regular expression.");
   }
 
-  /** Expand each capture directly into the bounded output, never a huge temporary string. */
+  /** Expand each capture directly into the output instead of creating temporary capture strings. */
   private static void appendReplacement(
       Matcher matcher, String text, StringBuilder result, String replacement, boolean regex) {
     if (!regex) {
-      appendBounded(result, replacement, 0, replacement.length());
+      appendText(result, replacement, 0, replacement.length());
       return;
     }
     int cursor = 0;
@@ -206,7 +209,7 @@ public final class SearchEngine {
         if (cursor == replacement.length()) {
           throw new IllegalArgumentException("Replacement ends with an unescaped backslash.");
         }
-        appendBounded(result, replacement, cursor, cursor + 1);
+        appendText(result, replacement, cursor, cursor + 1);
         cursor++;
       } else if (value == '$') {
         if (cursor == replacement.length())
@@ -239,22 +242,23 @@ public final class SearchEngine {
           start = matcher.start(group);
           end = matcher.end(group);
         }
-        if (start >= 0) appendBounded(result, text, start, end);
+        if (start >= 0) appendText(result, text, start, end);
       } else {
         int start = cursor - 1;
         while (cursor < replacement.length()
             && replacement.charAt(cursor) != '\\'
             && replacement.charAt(cursor) != '$') cursor++;
-        appendBounded(result, replacement, start, cursor);
+        appendText(result, replacement, start, cursor);
       }
     }
   }
 
-  private static void appendBounded(StringBuilder result, String text, int start, int end) {
-    if ((long) result.length() + end - start > MAX_OUTPUT_CHARACTERS) {
+  private static void appendText(StringBuilder result, String text, int start, int end) {
+    // Java strings use signed-int offsets. Check arithmetic before append, without an app-level
+    // document size limit; actual allocation remains governed by the device's available memory.
+    if ((long) result.length() + end - start > Integer.MAX_VALUE) {
       throw new IllegalArgumentException(
-          "Replacement exceeds the 2 million character limit. Use a shorter replacement or fewer"
-              + " matches.");
+          "The replacement is too large to represent as a single text document.");
     }
     result.append(text, start, end);
   }

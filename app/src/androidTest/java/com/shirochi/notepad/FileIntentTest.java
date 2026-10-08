@@ -312,6 +312,60 @@ public final class FileIntentTest {
   }
 
   @Test
+  public void twentySharedFilesOpenExactlyOnceAndRecoverWithoutDroppingTabs() throws Exception {
+    ArrayList<Uri> uris = new ArrayList<>();
+    for (int i = 0; i < 20; i++) {
+      uris.add(fixture("txt", "text/plain", "Shared file " + i + "\n"));
+    }
+    Intent intent = shareIntent(Intent.ACTION_SEND_MULTIPLE, "text/plain");
+    intent.putParcelableArrayListExtra(Intent.EXTRA_STREAM, new ArrayList<>(uris.subList(0, 16)));
+    ClipData clips = ClipData.newRawUri("Twenty text files", uris.get(0));
+    for (int i = 1; i < uris.size(); i++) clips.addItem(new ClipData.Item(uris.get(i)));
+    intent.setClipData(clips);
+    launch(intent);
+    awaitActivity(
+        activity -> {
+          for (Uri uri : uris) if (!hasDocument(activity, uri)) return false;
+          return true;
+        },
+        "all twenty shared files");
+    scenario.onActivity(
+        activity -> {
+          assertEquals(
+              "Repeated stream/clip attachments must not duplicate tabs",
+              20,
+              documents(activity).size());
+          for (int i = 0; i < uris.size(); i++) {
+            assertEquals("Shared file " + i + "\n", document(activity, uris.get(i)).text);
+          }
+          assertEquals(uris.get(19).toString(), current(activity).uri);
+          editor(activity).setText("Unsaved changes in the twentieth shared file\n");
+        });
+    scenario.recreate();
+    awaitActivity(
+        activity -> !((Boolean) field(activity, "loading")) && documents(activity).size() == 20,
+        "twenty recovered file tabs");
+    scenario.onActivity(
+        activity -> {
+          assertEquals(uris.get(19).toString(), current(activity).uri);
+          assertEquals(
+              "Unsaved changes in the twentieth shared file\n",
+              editor(activity).getText().toString());
+          assertTrue(current(activity).dirty());
+          for (int i = 0; i < 19; i++) {
+            assertEquals("Shared file " + i + "\n", document(activity, uris.get(i)).text);
+            assertFalse(document(activity, uris.get(i)).dirty());
+          }
+        });
+    for (int i = 0; i < uris.size(); i++) {
+      assertEquals(
+          "Source files must remain unchanged until Save",
+          "Shared file " + i + "\n",
+          text(uris.get(i)));
+    }
+  }
+
+  @Test
   public void plainTextShareStillCreatesEditableDraft() {
     Intent intent = shareIntent(Intent.ACTION_SEND, "text/plain");
     intent.putExtra(Intent.EXTRA_TEXT, "Shared text without an attached file 🌿");
